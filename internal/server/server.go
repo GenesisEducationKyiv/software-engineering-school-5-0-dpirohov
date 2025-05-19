@@ -30,7 +30,6 @@ type Server struct {
 }
 
 func NewServer() *http.Server {
-	host := os.Getenv("HOST")
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	gormDB, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
@@ -66,7 +65,7 @@ func NewServer() *http.Server {
 		log.Fatal("Fail to retrieve SMTP credentials")
 	}
 
-	smtpClient := provider.NewSMTPClient(smtpHost, smtpPort, smtpUser, smtpPass, fmt.Sprintf("%s:%d", host, port))
+	smtpClient := provider.NewSMTPClient(smtpHost, smtpPort, smtpUser, smtpPass, smtpLinkUrl)
 	subscriptionService := s_subscription.NewSubscriptionService(
 		subscriptionRepo,
 		userRepo,
