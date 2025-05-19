@@ -1,2 +1,1 @@
-# weatherApi
-Genesis se-school-5 test task
+Test task for genesis se-school #5
