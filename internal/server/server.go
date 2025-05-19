@@ -60,8 +60,9 @@ func NewServer() *http.Server {
 	smtpPort, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
 	smtpUser := os.Getenv("SMTP_USER")
 	smtpPass := os.Getenv("SMTP_PASS")
+	smtpLinkUrl := os.Getenv("SMTP_LINK_URL")
 
-	if smtpHost == "" || smtpUser == "" || smtpPass == "" || err != nil {
+	if smtpHost == "" || smtpUser == "" || smtpPass == "" || smtpLinkUrl == "" ||err != nil {
 		log.Fatal("Fail to retrieve SMTP credentials")
 	}
 
