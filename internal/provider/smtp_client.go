@@ -10,21 +10,20 @@ type SMTPClientInterface interface {
 	SendConfirmationToken(to, token, city string) error
 }
 
-
 type SMTPClient struct {
-	host string
-	port int
-	login string
-	password string
+	host      string
+	port      int
+	login     string
+	password  string
 	serverUrl string
 }
 
 func NewSMTPClient(host string, port int, login, password, serverUrl string) SMTPClientInterface {
 	return &SMTPClient{
-		host: host,
-		port: port,
-		login: login,
-		password: password,
+		host:      host,
+		port:      port,
+		login:     login,
+		password:  password,
 		serverUrl: serverUrl,
 	}
 }
@@ -35,7 +34,6 @@ func (c *SMTPClient) SendConfirmationToken(to, token, city string) error {
 	m.SetHeader("To", to)
 	m.SetHeader("Subject", "Weather subscription confimation")
 	confirmationURL := fmt.Sprintf("%s/confirm/%s", c.serverUrl, token)
-
 	htmlBody := fmt.Sprintf(`
 		<html>
 			<body style="font-family: Arial, sans-serif; color: #333;">

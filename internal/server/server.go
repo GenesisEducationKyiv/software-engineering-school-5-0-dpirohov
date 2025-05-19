@@ -61,7 +61,7 @@ func NewServer() *http.Server {
 	smtpPass := os.Getenv("SMTP_PASS")
 	smtpLinkUrl := os.Getenv("SMTP_LINK_URL")
 
-	if smtpHost == "" || smtpUser == "" || smtpPass == "" || smtpLinkUrl == "" ||err != nil {
+	if smtpHost == "" || smtpUser == "" || smtpPass == "" || smtpLinkUrl == "" || err != nil {
 		log.Fatal("Fail to retrieve SMTP credentials")
 	}
 

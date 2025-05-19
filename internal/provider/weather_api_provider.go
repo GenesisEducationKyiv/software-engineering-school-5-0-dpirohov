@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
-	"net/http"
 )
 
 type weatherAPIResponse struct {
@@ -60,7 +60,7 @@ func (w *WeatherApiProvider) GetWeather(city string) (*WeatherResponse, *errors.
 }
 
 func (w *WeatherApiProvider) checkApiResponse(response *http.Response) *errors.AppError {
-		switch response.StatusCode {
+	switch response.StatusCode {
 	case 200:
 		return nil
 	case 404:

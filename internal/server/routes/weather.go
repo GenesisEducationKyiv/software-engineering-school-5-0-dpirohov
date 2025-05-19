@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"weatherApi/internal/service/weather"
 	"net/http"
+	"weatherApi/internal/service/weather"
 
 	"github.com/gin-gonic/gin"
 )

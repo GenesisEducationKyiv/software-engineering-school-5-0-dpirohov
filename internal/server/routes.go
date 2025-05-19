@@ -1,11 +1,11 @@
 package server
 
 import (
-	"weatherApi/internal/common/config"
-	"weatherApi/internal/server/routes"
 	"net/http"
 	"os"
 	"path/filepath"
+	"weatherApi/internal/common/config"
+	"weatherApi/internal/server/routes"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 		api.GET("/unsubscribe/:token", subscriptionHandler.Unsubscribe)
 	}
 
-    webDir := filepath.Join(config.ROOT_DIR, "web")
+	webDir := filepath.Join(config.ROOT_DIR, "web")
 
 	r.Static("/assets", filepath.Join(webDir, "assets"))
 

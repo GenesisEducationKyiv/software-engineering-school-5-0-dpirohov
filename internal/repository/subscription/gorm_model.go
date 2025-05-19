@@ -1,9 +1,9 @@
 package subscription
 
 import (
+	"time"
 	"weatherApi/internal/common/constants"
 	"weatherApi/internal/repository/user"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -17,10 +17,10 @@ type SubscriptionModel struct {
 	UserID uint
 	User   user.UserModel `gorm:"foreignKey:UserID"`
 
-	IsConfirmed   bool      `gorm:"default:false"`
-	ConfirmToken  string    `gorm:"uniqueIndex;size:64"`
-	TokenExpires  time.Time `gorm:"not null"`
-	ConfirmedAt   *time.Time
+	IsConfirmed  bool      `gorm:"default:false"`
+	ConfirmToken string    `gorm:"uniqueIndex;size:64"`
+	TokenExpires time.Time `gorm:"not null"`
+	ConfirmedAt  *time.Time
 }
 
 func (SubscriptionModel) TableName() string {

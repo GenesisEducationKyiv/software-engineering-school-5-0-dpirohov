@@ -3,9 +3,9 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
-	"log"
 
 	"net/http"
 )
