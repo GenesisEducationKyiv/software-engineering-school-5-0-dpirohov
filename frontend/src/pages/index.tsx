@@ -3,9 +3,8 @@ import {Box} from '@mui/material';
 import {getWeather} from '../hooks/getWeather';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import WeatherBlock from './components/Weather';
-import {useEffect, useState} from "react";
-import {useNotifications} from "@toolpad/core";
-
+import {useEffect, useState} from 'react';
+import {useNotifications} from '@toolpad/core';
 
 export default function WeatherPage() {
     const [city, setCity] = useState('Kyiv');
@@ -16,6 +15,7 @@ export default function WeatherPage() {
         if (isError && error) {
             notifications.show(`Failed to load weather: ${error.message}`, {
                 severity: 'error',
+                autoHideDuration: 3000,
             });
         }
     }, [isError, error]);
@@ -29,7 +29,7 @@ export default function WeatherPage() {
                     <WeatherBlock
                         temperature={weather?.temperature ?? 0}
                         humidity={weather?.humidity ?? 0}
-                        description={weather?.description ?? "No description provided :("}
+                        description={weather?.description ?? 'No description provided :('}
                         city={city}
                         onCitySearch={setCity}
                     />

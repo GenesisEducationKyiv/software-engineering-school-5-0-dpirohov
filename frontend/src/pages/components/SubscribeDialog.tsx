@@ -62,7 +62,7 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
                         sx={{
                             width: '100%',
                             height: '100%',
-                            minWidth: 600,
+                            minWidth: 300,
                             minHeight: 250,
                             display: 'flex',
                             alignItems: 'center',
@@ -74,7 +74,7 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
                 </DialogContent>
             ) : (
                 <form onSubmit={handleSubmit(onSubmit)} noValidate>
-                    <DialogContent sx={{display: 'flex', flexDirection: 'column', gap: 2, minWidth: 600}}>
+                    <DialogContent sx={{display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300}}>
                         <TextFieldElement name="city" label={'City'} required fullWidth autoFocus control={control} />
                         <TextFieldElement name="email" label={'Email'} required fullWidth autoFocus control={control} />
                         <SelectElement

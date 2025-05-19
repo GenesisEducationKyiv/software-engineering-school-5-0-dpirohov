@@ -1,7 +1,7 @@
 import {FC, memo, useState} from 'react';
 import {Weather} from '../../api';
 import {TextFieldElement, useForm} from 'react-hook-form-mui';
-import {Box, Button, Card, CardContent, InputAdornment, Stack, Typography} from '@mui/material';
+import {Box, Button, Card, CardContent, IconButton, InputAdornment, Stack, Typography} from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import {useDialogs} from '@toolpad/core';
 import SubscribeDialog from './SubscribeDialog';
@@ -48,7 +48,9 @@ const WeatherBlock: FC<WeatherProps> = ({temperature, humidity, description, cit
                         input: {
                             endAdornment: (
                                 <InputAdornment position="end">
-                                    <SearchIcon />
+                                    <IconButton onClick={handleSubmit(onSubmit)} edge="end" size="small">
+                                        <SearchIcon />
+                                    </IconButton>
                                 </InputAdornment>
                             ),
                         },
