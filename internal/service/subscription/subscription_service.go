@@ -1,13 +1,13 @@
 package subscription
 
 import (
+	"time"
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
 	serviceErrors "weatherApi/internal/service/subscription/errors"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -18,7 +18,6 @@ type SubscriptionService struct {
 	smtpClient       provider.SMTPClientInterface
 	tokenLifeMinutes int
 }
-
 
 func NewSubscriptionService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,

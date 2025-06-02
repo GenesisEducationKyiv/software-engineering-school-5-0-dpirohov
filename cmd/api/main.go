@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"weatherApi/internal/server"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+	"weatherApi/internal/server"
 )
 
 func gracefulShutdown(apiServer *http.Server, done chan bool) {

@@ -17,9 +17,8 @@ type HealthCheckService interface {
 }
 
 type service struct {
-	sqlDB  *sql.DB
+	sqlDB *sql.DB
 }
-
 
 func New(db *sql.DB) HealthCheckService {
 	return &service{

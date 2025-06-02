@@ -1,10 +1,10 @@
 package weather
 
 import (
-	"weatherApi/internal/common/errors"
-	"weatherApi/internal/provider"
 	"log"
 	"os"
+	"weatherApi/internal/common/errors"
+	"weatherApi/internal/provider"
 )
 
 type WeatherService struct {
@@ -20,7 +20,6 @@ func NewWeatherService() *WeatherService {
 }
 
 func (service *WeatherService) GetWeather(city string) (*provider.WeatherResponse, *errors.AppError) {
-
 
 	response, err := service.MainProvider.GetWeather(city)
 	if err == nil {

@@ -1,8 +1,8 @@
 package errors
 
 import (
-	"weatherApi/internal/common/errors"
 	"net/http"
+	"weatherApi/internal/common/errors"
 )
 
 var (
