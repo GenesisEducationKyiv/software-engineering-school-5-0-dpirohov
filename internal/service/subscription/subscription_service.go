@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"time"
+
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
@@ -35,12 +36,12 @@ func NewSubscriptionService(
 
 func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonErrors.AppError {
 	if email == "" || city == "" || frequency == "" {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	token, err := s.generateConfirmationToken()
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	userModel := &user.UserModel{
@@ -51,19 +52,19 @@ func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonEr
 		"email": email,
 	}, userModel)
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	expiry := time.Now().Add(time.Duration(s.tokenLifeMinutes) * time.Minute)
 
 	if existing != nil {
 		if existing.IsConfirmed {
-			return serviceErrors.AlreadySubscribed
+			return serviceErrors.ErrAlreadySubscribed
 		}
 
 		existing.ConfirmToken = token
@@ -71,7 +72,7 @@ func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonEr
 		existing.Frequency = constants.Frequency(frequency)
 
 		if err := s.SubscriptionRepo.Update(existing); err != nil {
-			return serviceErrors.InternalServerError
+			return serviceErrors.ErrInternalServerError
 		}
 	} else {
 		newSub := &subscription.SubscriptionModel{
@@ -84,56 +85,62 @@ func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonEr
 		}
 
 		if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
-			return serviceErrors.InternalServerError
+			return serviceErrors.ErrInternalServerError
 		}
 	}
 
 	if err := s.smtpClient.SendConfirmationToken(email, token, city); err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
 }
 
 func (s *SubscriptionService) ConfirmSubscription(token string) *commonErrors.AppError {
-	subscription, err := s.SubscriptionRepo.FindOneOrNone("confirm_token = ? AND deleted_at IS NULL", token)
+	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		"confirm_token = ? AND deleted_at IS NULL",
+		token,
+	)
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 	if subscription == nil {
-		return serviceErrors.TokenNotFound
+		return serviceErrors.ErrTokenNotFound
 	}
 
 	if subscription.IsConfirmed {
-		return serviceErrors.AlreadySubscribed
+		return serviceErrors.ErrAlreadySubscribed
 	}
 
 	if time.Now().After(subscription.TokenExpires) {
-		return serviceErrors.InvalidToken
+		return serviceErrors.ErrInvalidToken
 	}
 	now := time.Now()
 	subscription.IsConfirmed = true
 	subscription.ConfirmedAt = &now
 
 	if err := s.SubscriptionRepo.Update(subscription); err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
-
 }
 
 func (s *SubscriptionService) Unsubscribe(token string) *commonErrors.AppError {
-	subscription, err := s.SubscriptionRepo.FindOneOrNone("confirm_token = ? AND is_confirmed = ?", token, true)
+	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		"confirm_token = ? AND is_confirmed = ?",
+		token,
+		true,
+	)
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 	if subscription == nil {
-		return serviceErrors.TokenNotFound
+		return serviceErrors.ErrTokenNotFound
 	}
 
 	if err := s.SubscriptionRepo.Delete(subscription); err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
@@ -145,5 +152,4 @@ func (s *SubscriptionService) generateConfirmationToken() (string, error) {
 		return "", err
 	}
 	return token.String(), nil
-
 }

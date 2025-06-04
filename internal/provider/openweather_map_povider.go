@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
-
-	"net/http"
 )
 
 type openweatherMapAPIResponse struct {
@@ -31,25 +31,32 @@ type OpenWeatherMapApiProvider struct {
 }
 
 func NewOpenWeatherApiProvider(apikey string) WeatherProviderInterface {
-	return &OpenWeatherMapApiProvider{apiKey: apikey, url: "http://api.openweathermap.org/data/2.5/weather"}
+	return &OpenWeatherMapApiProvider{
+		apiKey: apikey,
+		url:    "http://api.openweathermap.org/data/2.5/weather",
+	}
 }
 
 func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *errors.AppError) {
 	var openWeatherMapResponse openweatherMapAPIResponse
-	response, error := http.Get(fmt.Sprintf("%s?q=%s&APPID=%s&units=metric", w.url, city, w.apiKey))
+	response, err := http.Get(fmt.Sprintf("%s?q=%s&APPID=%s&units=metric", w.url, city, w.apiKey))
 
-	if error != nil {
-		return nil, w.handleInternalError(error)
+	if err != nil {
+		return nil, w.handleInternalError(err)
 	}
 
 	if badResponse := w.checkApiResponse(response); badResponse != nil {
 		return nil, badResponse
 	}
 
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	if err := json.NewDecoder(response.Body).Decode(&openWeatherMapResponse); err != nil {
-		return nil, w.handleInternalError(error)
+		return nil, w.handleInternalError(err)
 	}
 
 	var description string
@@ -67,12 +74,12 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *
 
 func (w *OpenWeatherMapApiProvider) checkApiResponse(response *http.Response) *errors.AppError {
 	switch response.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
-	case 404:
-		return serviceErrors.CityNotFoundError
+	case http.StatusNotFound:
+		return serviceErrors.ErrCityNotFound
 	default:
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 }
 

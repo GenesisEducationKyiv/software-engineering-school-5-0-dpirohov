@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+
 	"weatherApi/internal/service/subscription"
 
 	"github.com/gin-gonic/gin"
@@ -12,19 +13,20 @@ type SubscriptionHandler struct {
 }
 
 type SubscribeRequest struct {
-	Email     string `json:"email" binding:"required"`
-	City      string `json:"city" binding:"required"`
+	Email     string `json:"email"     binding:"required"`
+	City      string `json:"city"      binding:"required"`
 	Frequency string `json:"frequency" binding:"required,oneof=hourly daily"`
 }
 
-func NewSubscriptionHandler(subscriptionService *subscription.SubscriptionService) *SubscriptionHandler {
+func NewSubscriptionHandler(
+	subscriptionService *subscription.SubscriptionService,
+) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		service: subscriptionService,
 	}
 }
 
 func (h *SubscriptionHandler) Subscribe(c *gin.Context) {
-
 	var req SubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
@@ -46,7 +48,6 @@ func (h *SubscriptionHandler) ConfirmSubscription(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, "Subscription confirmed successfully")
-
 }
 
 func (h *SubscriptionHandler) Unsubscribe(c *gin.Context) {

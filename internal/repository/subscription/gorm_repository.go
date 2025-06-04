@@ -8,7 +8,10 @@ import (
 
 type SubscriptionRepositoryInterface interface {
 	FindOneOrNone(query any, args ...any) (*SubscriptionModel, error)
-	FindOneOrCreate(conditions map[string]any, entity *SubscriptionModel) (*SubscriptionModel, error)
+	FindOneOrCreate(
+		conditions map[string]any,
+		entity *SubscriptionModel,
+	) (*SubscriptionModel, error)
 	CreateOne(entity *SubscriptionModel) error
 	Update(entity *SubscriptionModel) error
 	Delete(entity *SubscriptionModel) error
