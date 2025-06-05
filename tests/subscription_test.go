@@ -7,11 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
 	"weatherApi/internal/server/routes"
-	s_service "weatherApi/internal/service/subscription"
+	subscriptionService "weatherApi/internal/service/subscription"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func TestSubscribeSuccess(t *testing.T) {
 		},
 	}
 
-	service := s_service.NewSubscriptionService(subRepo, userRepo, &provider.MockSMTPClient{}, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, &provider.MockSMTPClient{}, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
@@ -51,7 +52,7 @@ func TestSubscribeSuccess(t *testing.T) {
 		"city":      "Kyiv",
 		"frequency": "daily",
 	})
-	req, _ := http.NewRequest("POST", "/subscribe", bytes.NewBuffer(body))
+	req, _ := http.NewRequest(http.MethodPost, "/subscribe", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -62,14 +63,14 @@ func TestSubscribeSuccess(t *testing.T) {
 }
 
 func TestSubscribeInvalidInput(t *testing.T) {
-	service := s_service.NewSubscriptionService(nil, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(nil, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
 	body, _ := json.Marshal(gin.H{
 		"email": "test@example.com", // missing "city" and "frequency"
 	})
-	req, _ := http.NewRequest("POST", "/subscribe", bytes.NewBuffer(body))
+	req, _ := http.NewRequest(http.MethodPost, "/subscribe", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -92,11 +93,11 @@ func TestConfirmSubscriptionSuccess(t *testing.T) {
 			return nil
 		},
 	}
-	service := s_service.NewSubscriptionService(subRepo, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/confirm/some-valid-token", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-valid-token", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -110,11 +111,11 @@ func TestConfirmSubscriptionInvalidToken(t *testing.T) {
 			return nil, nil
 		},
 	}
-	service := s_service.NewSubscriptionService(subRepo, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/confirm/invalid-token", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/confirm/invalid-token", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -135,11 +136,11 @@ func TestTokenExpired(t *testing.T) {
 			return nil
 		},
 	}
-	service := s_service.NewSubscriptionService(subRepo, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/confirm/some-valid-token", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/confirm/some-valid-token", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -159,11 +160,11 @@ func TestUnsubscribeSuccess(t *testing.T) {
 			return nil
 		},
 	}
-	service := s_service.NewSubscriptionService(subRepo, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/unsubscribe/some-token", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/unsubscribe/some-token", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -172,17 +173,16 @@ func TestUnsubscribeSuccess(t *testing.T) {
 }
 
 func TestUnsubscribeSubscriptionTokenNotFound(t *testing.T) {
-
 	subRepo := &subscription.MockSubscriptionRepository{
 		FindOneOrNoneFn: func(query any, args ...any) (*subscription.SubscriptionModel, error) {
 			return nil, nil
 		},
 	}
-	service := s_service.NewSubscriptionService(subRepo, nil, nil, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/unsubscribe/some-token", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/unsubscribe/some-token", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

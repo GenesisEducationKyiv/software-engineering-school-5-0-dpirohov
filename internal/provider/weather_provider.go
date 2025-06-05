@@ -2,6 +2,7 @@ package provider
 
 import (
 	"net/http"
+
 	"weatherApi/internal/common/errors"
 )
 

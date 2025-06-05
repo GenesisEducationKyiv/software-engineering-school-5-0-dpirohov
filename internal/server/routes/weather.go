@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+
 	"weatherApi/internal/service/weather"
 
 	"github.com/gin-gonic/gin"
@@ -25,12 +26,11 @@ func (h *WeatherHandler) GetWeather(c *gin.Context) {
 		return
 	}
 
-	weather, err := h.service.GetWeather(city)
-
+	response, err := h.service.GetWeather(city)
 	if err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
 	}
 
-	c.JSON(http.StatusOK, weather)
+	c.JSON(http.StatusOK, response)
 }

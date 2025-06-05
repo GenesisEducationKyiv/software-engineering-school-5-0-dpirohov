@@ -3,6 +3,7 @@ package weather
 import (
 	"log"
 	"os"
+
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
 )
@@ -19,8 +20,9 @@ func NewWeatherService() *WeatherService {
 	}
 }
 
-func (service *WeatherService) GetWeather(city string) (*provider.WeatherResponse, *errors.AppError) {
-
+func (service *WeatherService) GetWeather(
+	city string,
+) (*provider.WeatherResponse, *errors.AppError) {
 	response, err := service.MainProvider.GetWeather(city)
 	if err == nil {
 		return response, nil

@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
-	"weatherApi/internal/service/weather"
-
 	"weatherApi/internal/server/routes"
+	"weatherApi/internal/service/weather"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -123,7 +123,7 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 }
 
 func TestCityNotFound(t *testing.T) {
-	// Service trusts it's main provider on city search as it's more realible so we do not fall to second provider if first returns 404
+	// Service trusts it's main provider on city search as it's more reliable so we do not fall to second provider if first returns 404
 	gin.SetMode(gin.TestMode)
 
 	mainProvider := &provider.MockProvider{
