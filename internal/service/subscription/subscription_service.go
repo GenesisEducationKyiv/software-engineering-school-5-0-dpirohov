@@ -1,10 +1,13 @@
 package subscription
 
 import (
+	"errors"
 	"time"
+	"weatherApi/internal/repository/base"
 
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
+	"weatherApi/internal/dto"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
@@ -34,62 +37,59 @@ func NewSubscriptionService(
 	}
 }
 
-func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonErrors.AppError {
-	if email == "" || city == "" || frequency == "" {
-		return serviceErrors.ErrInternalServerError
-	}
-
+func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
 	token, err := s.generateConfirmationToken()
 	if err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
 	userModel := &user.UserModel{
-		Email: email,
+		Email: subscribeRequest.Email,
 	}
 
 	user, err := s.UserRepo.FindOneOrCreate(map[string]any{
-		"email": email,
+		"email": subscribeRequest.Email,
 	}, userModel)
-	if err != nil {
-		return serviceErrors.ErrInternalServerError
-	}
-
-	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
 	if err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
 	expiry := time.Now().Add(time.Duration(s.tokenLifeMinutes) * time.Minute)
 
-	if existing != nil {
-		if existing.IsConfirmed {
-			return serviceErrors.ErrAlreadySubscribed
-		}
+	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
+	if err != nil {
+		if errors.Is(err, base.ErrNotFound) {
+			newSub := &subscription.SubscriptionModel{
+				City:         subscribeRequest.City,
+				Frequency:    constants.Frequency(subscribeRequest.Frequency),
+				UserID:       user.ID,
+				IsConfirmed:  false,
+				ConfirmToken: token,
+				TokenExpires: expiry,
+			}
 
-		existing.ConfirmToken = token
-		existing.TokenExpires = expiry
-		existing.Frequency = constants.Frequency(frequency)
-
-		if err := s.SubscriptionRepo.Update(existing); err != nil {
-			return serviceErrors.ErrInternalServerError
-		}
-	} else {
-		newSub := &subscription.SubscriptionModel{
-			City:         city,
-			Frequency:    constants.Frequency(frequency),
-			UserID:       user.ID,
-			IsConfirmed:  false,
-			ConfirmToken: token,
-			TokenExpires: expiry,
-		}
-
-		if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
+			if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
+				return serviceErrors.ErrInternalServerError
+			}
+			return nil
+		} else {
 			return serviceErrors.ErrInternalServerError
 		}
 	}
 
-	if err := s.smtpClient.SendConfirmationToken(email, token, city); err != nil {
+	if existing.IsConfirmed {
+		return serviceErrors.ErrAlreadySubscribed
+	}
+
+	existing.ConfirmToken = token
+	existing.TokenExpires = expiry
+	existing.Frequency = constants.Frequency(subscribeRequest.Frequency)
+
+	if err := s.SubscriptionRepo.Update(existing); err != nil {
+		return serviceErrors.ErrInternalServerError
+	}
+
+	if err := s.smtpClient.SendConfirmationToken(subscribeRequest.Email, token, subscribeRequest.City); err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
@@ -102,10 +102,10 @@ func (s *SubscriptionService) ConfirmSubscription(token string) *commonErrors.Ap
 		token,
 	)
 	if err != nil {
+		if errors.Is(err, base.ErrNotFound) {
+			return serviceErrors.ErrTokenNotFound
+		}
 		return serviceErrors.ErrInternalServerError
-	}
-	if subscription == nil {
-		return serviceErrors.ErrTokenNotFound
 	}
 
 	if subscription.IsConfirmed {
@@ -133,10 +133,10 @@ func (s *SubscriptionService) Unsubscribe(token string) *commonErrors.AppError {
 		true,
 	)
 	if err != nil {
+		if errors.Is(err, base.ErrNotFound) {
+			return serviceErrors.ErrTokenNotFound
+		}
 		return serviceErrors.ErrInternalServerError
-	}
-	if subscription == nil {
-		return serviceErrors.ErrTokenNotFound
 	}
 
 	if err := s.SubscriptionRepo.Delete(subscription); err != nil {

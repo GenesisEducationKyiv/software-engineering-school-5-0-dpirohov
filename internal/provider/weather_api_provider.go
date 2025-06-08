@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
@@ -37,7 +39,17 @@ func NewWeatherApiProvider(apikey string) WeatherProviderInterface {
 
 func (w *WeatherApiProvider) GetWeather(city string) (*WeatherResponse, *errors.AppError) {
 	var weatherResponse weatherAPIResponse
-	response, err := http.Get(fmt.Sprintf("%s?key=%s&q=%s&aqi=no", w.url, w.apiKey, city))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s?key=%s&q=%s&aqi=no", w.url, w.apiKey, city),
+		nil,
+	)
+	if err != nil {
+		return nil, w.handleInternalError(err)
+	}
+
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, w.handleInternalError(err)
 	}

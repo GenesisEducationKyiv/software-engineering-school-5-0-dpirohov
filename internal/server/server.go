@@ -15,6 +15,7 @@ import (
 	serviceSubscription "weatherApi/internal/service/subscription"
 	serviceWeather "weatherApi/internal/service/weather"
 
+	// Automatically loads environment variables from .env file on startup
 	_ "github.com/joho/godotenv/autoload"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -29,7 +30,10 @@ type Server struct {
 }
 
 func NewServer() *http.Server {
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
+	port, err := strconv.Atoi(os.Getenv("PORT"))
+	if err != nil {
+		log.Fatal("Server port is not provided!")
+	}
 	gormDB, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
 	})

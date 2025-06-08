@@ -1,10 +1,12 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
@@ -46,7 +48,9 @@ func TestWeatherHandler_Success(t *testing.T) {
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
-	req, _ := http.NewRequest(http.MethodGet, "/weather?city=Kyiv", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/weather?city=Kyiv", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -72,7 +76,9 @@ func TestWeatherHandler_MissingCity(t *testing.T) {
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
-	req, _ := http.NewRequest(http.MethodGet, "/weather", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/weather", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -107,7 +113,9 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
-	req, _ := http.NewRequest(http.MethodGet, "/weather?city=London", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/weather?city=London", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -150,7 +158,9 @@ func TestCityNotFound(t *testing.T) {
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
-	req, _ := http.NewRequest(http.MethodGet, "/weather?city=London", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/weather?city=London", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 

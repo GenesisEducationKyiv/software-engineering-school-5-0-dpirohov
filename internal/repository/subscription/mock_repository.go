@@ -27,5 +27,5 @@ func (m *MockSubscriptionRepository) FindOneOrCreate(
 	map[string]any,
 	*SubscriptionModel,
 ) (*SubscriptionModel, error) {
-	return nil, nil
+	return &SubscriptionModel{}, nil
 }

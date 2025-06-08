@@ -5,7 +5,7 @@ type MockUserRepository struct {
 }
 
 func (m *MockUserRepository) FindOneOrNone(q any, args ...any) (*UserModel, error) {
-	return nil, nil
+	return &UserModel{}, nil
 }
 
 func (m *MockUserRepository) CreateOne(e *UserModel) error {
