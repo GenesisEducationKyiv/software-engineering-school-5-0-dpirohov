@@ -1,4 +1,7 @@
 version: "2"
+exclusions:
+    paths:
+        - ./frontend
 formatters:
     enable:
         - goimports
@@ -12,9 +15,6 @@ linters:
             rules:
                 - name: exported
                   disabled: true
-        exclusions:
-            paths:
-                - ./frontend
     enable:
         - asasalint
         - bidichk
