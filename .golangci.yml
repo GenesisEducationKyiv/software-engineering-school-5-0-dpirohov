@@ -8,7 +8,11 @@ linters:
             case:
                 rules:
                     json: snake
-    exclusions:
+        revive:
+            rules:
+            - name: exported
+              disabled: true
+        exclusions:
         paths:
             - ./frontend
     enable:
@@ -33,7 +37,8 @@ linters:
         - predeclared
         - promlinter
         - reassign
-#        - revive
+        - revive
+        - cyclop
         - rowserrcheck
         - sqlclosecheck
         - staticcheck

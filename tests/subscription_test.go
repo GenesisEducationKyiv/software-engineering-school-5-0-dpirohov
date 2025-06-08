@@ -30,7 +30,7 @@ func setupTestRouter(handler *routes.SubscriptionHandler) *gin.Engine {
 
 func TestSubscribeSuccess(t *testing.T) {
 	userRepo := &user.MockUserRepository{
-		FindOneOrCreateFn: func(c map[string]any, e *user.UserModel) (*user.UserModel, error) {
+		FindOneOrCreateFn: func(_ map[string]any, e *user.UserModel) (*user.UserModel, error) {
 			e.ID = 1
 			return e, nil
 		},
