@@ -1,7 +1,4 @@
 version: "2"
-exclusions:
-    paths:
-        - ./frontend
 formatters:
     enable:
         - goimports
@@ -52,12 +49,10 @@ linters:
         - usestdlibvars
         - wastedassign
 
-
 run:
     tests: true
     timeout: 5m
     allow-parallel-runners: true
-
 
 issues:
     max-issues-per-linter: 0
