@@ -4,8 +4,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-gonic/gin"
-
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
 )
@@ -23,7 +21,6 @@ func NewWeatherService() *WeatherService {
 }
 
 func (service *WeatherService) GetWeather(
-	c *gin.Context,
 	city string,
 ) (*provider.WeatherResponse, *errors.AppError) {
 	response, err := service.MainProvider.GetWeather(city)

@@ -26,7 +26,7 @@ func (h *WeatherHandler) GetWeather(c *gin.Context) {
 		return
 	}
 
-	response, err := h.service.GetWeather(c, city)
+	response, err := h.service.GetWeather(city)
 	if err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
