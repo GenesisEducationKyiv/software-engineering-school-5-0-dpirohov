@@ -10,6 +10,8 @@ type BaseRepository[T any] struct {
 	DB *gorm.DB
 }
 
+var ErrNotFound = errors.New("record not found")
+
 func NewRepository[T any](db *gorm.DB) *BaseRepository[T] {
 	return &BaseRepository[T]{
 		DB: db,
@@ -27,7 +29,7 @@ func (r *BaseRepository[T]) FindOneOrNone(query any, args ...any) (*T, error) {
 	result := r.DB.Where(query, args...).First(&entity)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, nil
+		return nil, ErrNotFound
 	}
 	if result.Error != nil {
 		return nil, result.Error

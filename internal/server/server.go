@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"weatherApi/internal/provider"
-	repo_subscription "weatherApi/internal/repository/subscription"
-	repo_user "weatherApi/internal/repository/user"
+	repoSubscription "weatherApi/internal/repository/subscription"
+	repoUser "weatherApi/internal/repository/user"
+	serviceHealthcheck "weatherApi/internal/service/healthcheck"
+	serviceSubscription "weatherApi/internal/service/subscription"
+	serviceWeather "weatherApi/internal/service/weather"
 
-	s_healthcheck "weatherApi/internal/service/healthcheck"
-	s_subscription "weatherApi/internal/service/subscription"
-	s_weather "weatherApi/internal/service/weather"
-
+	// Automatically loads environment variables from .env file on startup
 	_ "github.com/joho/godotenv/autoload"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -24,17 +24,19 @@ import (
 
 type Server struct {
 	port                int
-	WeatherService      *s_weather.WeatherService
-	SubscriptionService *s_subscription.SubscriptionService
-	HealthCheckService  s_healthcheck.HealthCheckService
+	WeatherService      *serviceWeather.WeatherService
+	SubscriptionService *serviceSubscription.SubscriptionService
+	HealthCheckService  serviceHealthcheck.HealthCheckService
 }
 
 func NewServer() *http.Server {
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
+	port, err := strconv.Atoi(os.Getenv("PORT"))
+	if err != nil {
+		log.Fatal("Server port is not provided!")
+	}
 	gormDB, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
 	})
-
 	if err != nil {
 		log.Fatalf("failed to connect to DB: %v", err)
 	}
@@ -44,13 +46,12 @@ func NewServer() *http.Server {
 		log.Fatalf("Failed to get sql.DB: %v", err)
 	}
 
-	userRepo := repo_user.NewUserRepository(gormDB)
-	subscriptionRepo := repo_subscription.NewSubscriptionRepository(gormDB)
+	userRepo := repoUser.NewUserRepository(gormDB)
+	subscriptionRepo := repoSubscription.NewSubscriptionRepository(gormDB)
 
-	weatherService := s_weather.NewWeatherService()
+	weatherService := serviceWeather.NewWeatherService()
 
 	jwtLifetimeMinutes, err := strconv.Atoi(os.Getenv("TOKEN_LIFETIME_MINUTES"))
-
 	if err != nil {
 		log.Fatal("TOKEN_LIFETIME_MINUTES not provided!")
 	}
@@ -66,14 +67,14 @@ func NewServer() *http.Server {
 	}
 
 	smtpClient := provider.NewSMTPClient(smtpHost, smtpPort, smtpUser, smtpPass, smtpLinkUrl)
-	subscriptionService := s_subscription.NewSubscriptionService(
+	subscriptionService := serviceSubscription.NewSubscriptionService(
 		subscriptionRepo,
 		userRepo,
 		smtpClient,
 		jwtLifetimeMinutes,
 	)
 
-	healthcheckService := s_healthcheck.New(sqlDB)
+	healthcheckService := serviceHealthcheck.New(sqlDB)
 
 	NewServer := &Server{
 		port:                port,

@@ -1,9 +1,13 @@
 package subscription
 
 import (
+	"errors"
 	"time"
+	"weatherApi/internal/repository/base"
+
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
+	"weatherApi/internal/dto"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
@@ -33,107 +37,110 @@ func NewSubscriptionService(
 	}
 }
 
-func (s *SubscriptionService) Subscribe(email, city, frequency string) *commonErrors.AppError {
-	if email == "" || city == "" || frequency == "" {
-		return serviceErrors.InternalServerError
-	}
-
+func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
 	token, err := s.generateConfirmationToken()
 	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	userModel := &user.UserModel{
-		Email: email,
+		Email: subscribeRequest.Email,
 	}
 
 	user, err := s.UserRepo.FindOneOrCreate(map[string]any{
-		"email": email,
+		"email": subscribeRequest.Email,
 	}, userModel)
 	if err != nil {
-		return serviceErrors.InternalServerError
-	}
-
-	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
-	if err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	expiry := time.Now().Add(time.Duration(s.tokenLifeMinutes) * time.Minute)
 
-	if existing != nil {
-		if existing.IsConfirmed {
-			return serviceErrors.AlreadySubscribed
-		}
+	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
+	if err != nil {
+		if errors.Is(err, base.ErrNotFound) {
+			newSub := &subscription.SubscriptionModel{
+				City:         subscribeRequest.City,
+				Frequency:    constants.Frequency(subscribeRequest.Frequency),
+				UserID:       user.ID,
+				IsConfirmed:  false,
+				ConfirmToken: token,
+				TokenExpires: expiry,
+			}
 
-		existing.ConfirmToken = token
-		existing.TokenExpires = expiry
-		existing.Frequency = constants.Frequency(frequency)
-
-		if err := s.SubscriptionRepo.Update(existing); err != nil {
-			return serviceErrors.InternalServerError
-		}
-	} else {
-		newSub := &subscription.SubscriptionModel{
-			City:         city,
-			Frequency:    constants.Frequency(frequency),
-			UserID:       user.ID,
-			IsConfirmed:  false,
-			ConfirmToken: token,
-			TokenExpires: expiry,
-		}
-
-		if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
-			return serviceErrors.InternalServerError
+			if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
+				return serviceErrors.ErrInternalServerError
+			}
+			return nil
+		} else {
+			return serviceErrors.ErrInternalServerError
 		}
 	}
 
-	if err := s.smtpClient.SendConfirmationToken(email, token, city); err != nil {
-		return serviceErrors.InternalServerError
+	if existing.IsConfirmed {
+		return serviceErrors.ErrAlreadySubscribed
+	}
+
+	existing.ConfirmToken = token
+	existing.TokenExpires = expiry
+	existing.Frequency = constants.Frequency(subscribeRequest.Frequency)
+
+	if err := s.SubscriptionRepo.Update(existing); err != nil {
+		return serviceErrors.ErrInternalServerError
+	}
+
+	if err := s.smtpClient.SendConfirmationToken(subscribeRequest.Email, token, subscribeRequest.City); err != nil {
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
 }
 
 func (s *SubscriptionService) ConfirmSubscription(token string) *commonErrors.AppError {
-	subscription, err := s.SubscriptionRepo.FindOneOrNone("confirm_token = ? AND deleted_at IS NULL", token)
+	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		"confirm_token = ? AND deleted_at IS NULL",
+		token,
+	)
 	if err != nil {
-		return serviceErrors.InternalServerError
-	}
-	if subscription == nil {
-		return serviceErrors.TokenNotFound
+		if errors.Is(err, base.ErrNotFound) {
+			return serviceErrors.ErrTokenNotFound
+		}
+		return serviceErrors.ErrInternalServerError
 	}
 
 	if subscription.IsConfirmed {
-		return serviceErrors.AlreadySubscribed
+		return serviceErrors.ErrAlreadySubscribed
 	}
 
 	if time.Now().After(subscription.TokenExpires) {
-		return serviceErrors.InvalidToken
+		return serviceErrors.ErrInvalidToken
 	}
 	now := time.Now()
 	subscription.IsConfirmed = true
 	subscription.ConfirmedAt = &now
 
 	if err := s.SubscriptionRepo.Update(subscription); err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
-
 }
 
 func (s *SubscriptionService) Unsubscribe(token string) *commonErrors.AppError {
-	subscription, err := s.SubscriptionRepo.FindOneOrNone("confirm_token = ? AND is_confirmed = ?", token, true)
+	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		"confirm_token = ? AND is_confirmed = ?",
+		token,
+		true,
+	)
 	if err != nil {
-		return serviceErrors.InternalServerError
-	}
-	if subscription == nil {
-		return serviceErrors.TokenNotFound
+		if errors.Is(err, base.ErrNotFound) {
+			return serviceErrors.ErrTokenNotFound
+		}
+		return serviceErrors.ErrInternalServerError
 	}
 
 	if err := s.SubscriptionRepo.Delete(subscription); err != nil {
-		return serviceErrors.InternalServerError
+		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
@@ -145,5 +152,4 @@ func (s *SubscriptionService) generateConfirmationToken() (string, error) {
 		return "", err
 	}
 	return token.String(), nil
-
 }
