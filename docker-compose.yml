@@ -20,7 +20,8 @@ services:
   migrate:
     image: migrate/migrate:v4.15.2
     depends_on:
-      - db
+      db:
+        condition:  service_healthy
     command: ["-path", "/migrations", "-database", "postgres://admin:secret@db:5432/mydb?sslmode=disable", "up"]
     volumes:
       - ./migrations:/migrations
