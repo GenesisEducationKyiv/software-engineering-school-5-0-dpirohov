@@ -10,15 +10,22 @@ type MockSubscriptionRepository struct {
 func (m *MockSubscriptionRepository) FindOneOrNone(q any, args ...any) (*SubscriptionModel, error) {
 	return m.FindOneOrNoneFn(q, args...)
 }
+
 func (m *MockSubscriptionRepository) CreateOne(e *SubscriptionModel) error {
 	return m.CreateOneFn(e)
 }
+
 func (m *MockSubscriptionRepository) Update(e *SubscriptionModel) error {
 	return m.UpdateFn(e)
 }
+
 func (m *MockSubscriptionRepository) Delete(e *SubscriptionModel) error {
 	return m.DeleteFn(e)
 }
-func (m *MockSubscriptionRepository) FindOneOrCreate(map[string]any, *SubscriptionModel) (*SubscriptionModel, error) {
-	return nil, nil
+
+func (m *MockSubscriptionRepository) FindOneOrCreate(
+	map[string]any,
+	*SubscriptionModel,
+) (*SubscriptionModel, error) {
+	return &SubscriptionModel{}, nil
 }

@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"time"
+
 	"weatherApi/internal/common/constants"
 	"weatherApi/internal/repository/user"
 
