@@ -24,12 +24,31 @@ services:
     command: ["-path", "/migrations", "-database", "postgres://admin:secret@db:5432/mydb?sslmode=disable", "up"]
     volumes:
       - ./migrations:/migrations
-
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    depends_on:
+      db:
+        condition:  service_healthy
+      migrate:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmqctl status"]
+      interval: 10s
+      retries: 5
   api:
     build: .
     depends_on:
-      - db
-      - migrate
+      db:
+        condition:  service_healthy
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -40,6 +59,7 @@ services:
     env_file:
       - .env
     restart: always
+
 
 volumes:
   pg_data:

@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"weatherApi/internal/broker"
 	"weatherApi/internal/repository/base"
 
-	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
 	"weatherApi/internal/server/routes"
@@ -21,6 +21,7 @@ import (
 )
 
 func setupTestRouter(handler *routes.SubscriptionHandler) *gin.Engine {
+	gin.SetMode(gin.TestMode)
 	r := gin.Default()
 	r.POST("/subscribe", handler.Subscribe)
 	r.GET("/confirm/:token", handler.ConfirmSubscription)
@@ -45,7 +46,9 @@ func TestSubscribeSuccess(t *testing.T) {
 		},
 	}
 
-	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, &provider.MockSMTPClient{}, 60)
+	rmq := broker.NewMockRabbitMQBus()
+
+	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, rmq, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 

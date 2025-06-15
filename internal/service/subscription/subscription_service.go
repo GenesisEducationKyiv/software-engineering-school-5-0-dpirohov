@@ -1,14 +1,16 @@
 package subscription
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
 	"time"
+	"weatherApi/internal/broker"
 	"weatherApi/internal/repository/base"
 
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
 	"weatherApi/internal/dto"
-	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
 	serviceErrors "weatherApi/internal/service/subscription/errors"
@@ -19,20 +21,20 @@ import (
 type SubscriptionService struct {
 	SubscriptionRepo subscription.SubscriptionRepositoryInterface
 	UserRepo         user.UserRepositoryInterface
-	smtpClient       provider.SMTPClientInterface
+	rmq              broker.EventBusInerface
 	tokenLifeMinutes int
 }
 
 func NewSubscriptionService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,
 	userRepo user.UserRepositoryInterface,
-	smtpClient provider.SMTPClientInterface,
+	rmq broker.EventBusInerface,
 	tokenLifeMinutes int,
 ) *SubscriptionService {
 	return &SubscriptionService{
 		SubscriptionRepo: subscriptionRepo,
 		UserRepo:         userRepo,
-		smtpClient:       smtpClient,
+		rmq:              rmq,
 		tokenLifeMinutes: tokenLifeMinutes,
 	}
 }
@@ -89,10 +91,22 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 		return serviceErrors.ErrInternalServerError
 	}
 
-	if err := s.smtpClient.SendConfirmationToken(subscribeRequest.Email, token, subscribeRequest.City); err != nil {
+	task := dto.ConfirmationEmailTask{
+		Email: subscribeRequest.Email,
+		Token: token,
+		City:  subscribeRequest.City,
+	}
+	payload, err := json.Marshal(task)
+	if err != nil {
+		log.Println("Error marshaling confirmation event")
 		return serviceErrors.ErrInternalServerError
 	}
 
+	if err := s.rmq.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
+		log.Println("Error publishing confirmation event")
+		return serviceErrors.ErrInternalServerError
+	}
+	log.Printf("New task published! %s", task.Email)
 	return nil
 }
 
