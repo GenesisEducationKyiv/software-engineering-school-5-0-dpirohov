@@ -4,7 +4,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type RabbitMQBus struct {
@@ -14,7 +14,7 @@ type RabbitMQBus struct {
 
 type PublishOption func(*amqp.Publishing)
 
-func NewRabbitMQBus(url string) (EventBusInerface, error) {
+func NewRabbitMQBus(url string) (EventBusInterface, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
 		return nil, err

@@ -27,7 +27,7 @@ type Server struct {
 	HealthCheckService  serviceHealthcheck.HealthCheckService
 }
 
-func NewServer(cfg *config.Config, broker broker.EventBusInerface) *http.Server {
+func NewServer(cfg *config.Config, broker broker.EventBusInterface) *http.Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),

@@ -21,14 +21,14 @@ import (
 type SubscriptionService struct {
 	SubscriptionRepo subscription.SubscriptionRepositoryInterface
 	UserRepo         user.UserRepositoryInterface
-	rmq              broker.EventBusInerface
+	rmq              broker.EventBusInterface
 	tokenLifeMinutes int
 }
 
 func NewSubscriptionService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,
 	userRepo user.UserRepositoryInterface,
-	rmq broker.EventBusInerface,
+	rmq broker.EventBusInterface,
 	tokenLifeMinutes int,
 ) *SubscriptionService {
 	return &SubscriptionService{

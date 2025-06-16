@@ -8,7 +8,7 @@ import (
 	"weatherApi/internal/provider"
 )
 
-func StartConfirmationWorker(bus broker.EventBusInerface, smtpClient provider.SMTPClientInterface) error {
+func StartConfirmationWorker(bus broker.EventBusInterface, smtpClient provider.SMTPClientInterface) error {
 	err := bus.Subscribe(broker.SubscriptionConfirmationTasks, func(data []byte) error {
 		var task dto.ConfirmationEmailTask
 		if err := json.Unmarshal(data, &task); err != nil {

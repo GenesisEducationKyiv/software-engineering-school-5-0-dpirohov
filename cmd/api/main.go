@@ -16,7 +16,7 @@ import (
 	"weatherApi/internal/server"
 )
 
-func gracefulShutdown(ctx context.Context, apiServer *http.Server, rabbitMq broker.EventBusInerface, done chan bool) {
+func gracefulShutdown(ctx context.Context, apiServer *http.Server, rabbitMq broker.EventBusInterface, done chan bool) {
 	<-ctx.Done()
 
 	log.Println("shutting down gracefully, press Ctrl+C again to force")
