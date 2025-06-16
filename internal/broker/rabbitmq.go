@@ -1,39 +1,50 @@
 package broker
 
 import (
+	"context"
 	"log"
 	"strconv"
+	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const (
+	hdrRetries       = "x-retries"
+	hdrOriginalTopic = "x-original-topic"
+)
+
 type RabbitMQBus struct {
-	conn *amqp.Connection
-	ch   *amqp.Channel
+	conn       *amqp.Connection
+	pubCh      *amqp.Channel
+	mu         sync.Mutex
+	maxRetries int
 }
 
 type PublishOption func(*amqp.Publishing)
 
-func NewRabbitMQBus(url string) (EventBusInterface, error) {
+func NewRabbitMQBus(url string, maxRetries int) (EventBusInterface, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
 		return nil, err
 	}
 
-	ch, err := conn.Channel()
+	pubCh, err := conn.Channel()
 	if err != nil {
+		closeConnection(conn)
 		return nil, err
 	}
 
-	return &RabbitMQBus{conn: conn, ch: ch}, nil
+	if err := declareAllQueues(pubCh); err != nil {
+		closeChannel(pubCh)
+		closeConnection(conn)
+		return nil, err
+	}
+
+	return &RabbitMQBus{conn: conn, pubCh: pubCh, maxRetries: maxRetries, mu: sync.Mutex{}}, nil
 }
 
 func (r *RabbitMQBus) Publish(topic Topic, payload []byte, opts ...PublishOption) error {
-	_, err := r.ch.QueueDeclare(string(topic), true, false, false, false, nil)
-	if err != nil {
-		return err
-	}
-
 	pub := amqp.Publishing{
 		ContentType:  "application/json",
 		Body:         payload,
@@ -44,36 +55,61 @@ func (r *RabbitMQBus) Publish(topic Topic, payload []byte, opts ...PublishOption
 		option(&pub)
 	}
 
-	return r.ch.Publish("", string(topic), false, false, pub)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.pubCh.Publish("", string(topic), false, false, pub)
 }
 
-func (r *RabbitMQBus) Subscribe(topic Topic, handler func([]byte) error) error {
-	_, err := r.ch.QueueDeclare(string(topic), true, false, false, false, nil)
+func (r *RabbitMQBus) Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error {
+	subCh, err := r.conn.Channel()
 	if err != nil {
+		log.Printf("open subscribe channel: %v", err)
 		return err
 	}
 
-	msgs, err := r.ch.Consume(string(topic), "", false, false, false, false, nil)
+	msgs, err := subCh.Consume(string(topic), "", false, false, false, false, nil)
 	if err != nil {
+		closeChannel(subCh)
+		log.Printf("consume: %v", err)
 		return err
 	}
-
-	const maxRetries = 3
 
 	go func() {
-		for msg := range msgs {
-			r.handleMessage(msg, topic, handler, maxRetries)
+		defer closeChannel(subCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-msgs:
+				if !ok {
+					log.Printf("Channel for subscription %s was closed!", topic)
+					return
+				}
+				r.handleMessage(msg, topic, handler)
+			}
 		}
 	}()
 
+	log.Printf("[Rabbit] subscribed to %s", topic)
 	return nil
 }
 
 func (r *RabbitMQBus) Close() error {
-	if err := r.ch.Close(); err != nil {
-		return err
+	var firstErr error
+
+	if err := r.pubCh.Close(); err != nil {
+		log.Printf("Failed to close RabbitMQ channel: %v", err)
+		firstErr = err
 	}
-	return r.conn.Close()
+
+	if err := r.conn.Close(); err != nil {
+		log.Printf("Failed to close RabbitMQ connection: %v", err)
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }
 
 func WithHeaders(h amqp.Table) PublishOption {
@@ -86,7 +122,7 @@ func WithContentType(ct string) PublishOption {
 
 func (r *RabbitMQBus) getRetriesCount(headers map[string]any) int {
 	retries := 0
-	if hdr, ok := headers["x-retries"]; ok {
+	if hdr, ok := headers[hdrRetries]; ok {
 		if v, ok := hdr.(int32); ok {
 			retries = int(v)
 		} else if v, ok := hdr.(int64); ok {
@@ -98,24 +134,20 @@ func (r *RabbitMQBus) getRetriesCount(headers map[string]any) int {
 			if err == nil {
 				retries = val
 			} else {
-				log.Println("Failed to convert &s to int", v)
+				log.Printf("Failed to convert %s to int\n", v)
 			}
 		}
 	}
 	return retries
 }
 
-func (r *RabbitMQBus) handleMessage(msg amqp.Delivery, topic Topic, handler func([]byte) error, maxRetries int) {
+func (r *RabbitMQBus) handleMessage(msg amqp.Delivery, topic Topic, handler func([]byte) error) {
 	retries := r.getRetriesCount(msg.Headers)
 	err := handler(msg.Body)
 	if err != nil {
 		retries++
-		if retries > maxRetries {
-			if err := msg.Nack(false, false); err != nil {
-				log.Printf("Failed to NACK (drop) message: %v. Body: %s", err, string(msg.Body))
-			} else {
-				log.Printf("Message dropped after %d retries. Body: %s", retries, string(msg.Body))
-			}
+		if retries > r.maxRetries {
+			r.sendToDLQ(msg, topic, retries)
 			return
 		}
 
@@ -140,5 +172,51 @@ func (r *RabbitMQBus) handleMessage(msg amqp.Delivery, topic Topic, handler func
 
 	if errAck := msg.Ack(false); errAck != nil {
 		log.Printf("Failed to ACK message: %v. Body: %s", errAck, string(msg.Body))
+	}
+}
+
+func (r *RabbitMQBus) sendToDLQ(msg amqp.Delivery, topic Topic, retries int) {
+	err := r.Publish(
+		DeadLetterQueue,
+		msg.Body,
+		WithHeaders(amqp.Table{
+			hdrRetries:       retries,
+			hdrOriginalTopic: string(topic),
+		}),
+		WithContentType(msg.ContentType),
+	)
+	if err != nil {
+		log.Printf("DLQ publish failed: %v, fallback Nack requeue=false", err)
+		if err := msg.Nack(false, false); err != nil {
+			log.Printf("Failed to NACK (drop) message: %v. Body: %s", err, string(msg.Body))
+		}
+		return
+	}
+
+	if err := msg.Ack(false); err != nil {
+		log.Printf("Failed to ACK after DLQ: %v", err)
+	}
+	log.Printf("Message sent to DLQ (%s) after %d retries", DeadLetterQueue, retries)
+}
+
+func declareAllQueues(ch *amqp.Channel) error {
+	for _, t := range AllTopics {
+		if _, err := ch.QueueDeclare(string(t), true, false, false, false, nil); err != nil {
+			return err
+		}
+		log.Printf("Queue %s created!", t)
+	}
+	return nil
+}
+
+func closeConnection(conn *amqp.Connection) {
+	if err := conn.Close(); err != nil {
+		log.Printf("Failed to close RabbitMQ connection: %v", err)
+	}
+}
+
+func closeChannel(ch *amqp.Channel) {
+	if err := ch.Close(); err != nil {
+		log.Printf("Failed to close RabbitMQ channel: %v", err)
 	}
 }

@@ -1,6 +1,9 @@
 package broker
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type MockRabbitMQBus struct {
 	handlers map[Topic]func([]byte) error
@@ -24,7 +27,7 @@ func (m *MockRabbitMQBus) Publish(topic Topic, payload []byte, opts ...PublishOp
 	return nil
 }
 
-func (m *MockRabbitMQBus) Subscribe(topic Topic, handler func([]byte) error) error {
+func (m *MockRabbitMQBus) Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.handlers[topic] = handler

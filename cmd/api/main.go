@@ -46,12 +46,12 @@ func main() {
 
 	smtpClient := provider.NewSMTPClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpLogin, cfg.SmtpPassword, cfg.AppURL)
 
-	rabbitMq, err := broker.NewRabbitMQBus(cfg.BrokerURL)
+	rabbitMq, err := broker.NewRabbitMQBus(cfg.BrokerURL, cfg.BrokerMaxRetries)
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 
-	if err := worker.StartConfirmationWorker(rabbitMq, smtpClient); err != nil {
+	if err := worker.StartConfirmationWorker(ctx, rabbitMq, smtpClient); err != nil {
 		log.Fatalf("Failed to start confirmation worker: %v", err)
 	}
 

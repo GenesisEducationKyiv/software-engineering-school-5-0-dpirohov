@@ -13,9 +13,10 @@ type Config struct {
 	Host string
 	Port int
 
-	AppURL      string
-	DatabaseURL string
-	BrokerURL   string
+	AppURL           string
+	DatabaseURL      string
+	BrokerURL        string
+	BrokerMaxRetries int
 
 	OpenWeatherAPIkey string
 	WeatherApiAPIkey  string
@@ -42,9 +43,10 @@ func LoadConfig() *Config {
 		AppURL:               mustGet[string]("APP_URL"),
 		DatabaseURL:          mustGet[string]("DB_URL"),
 		BrokerURL:            mustGet[string]("BROKER_URL"),
+		BrokerMaxRetries:     getWithDefault[int]("RMQ_MAX_RETRIES", 3),
 		OpenWeatherAPIkey:    mustGet[string]("OPENWEATHER_API_KEY"),
 		WeatherApiAPIkey:     mustGet[string]("WEATHER_API_API_KEY"),
-		TokenLifetimeMinutes: mustGet[int]("TOKEN_LIFETIME_MINUTES"),
+		TokenLifetimeMinutes: getWithDefault[int]("TOKEN_LIFETIME_MINUTES", 15),
 		SmtpHost:             mustGet[string]("SMTP_HOST"),
 		SmtpPort:             mustGet[int]("SMTP_PORT"),
 		SmtpLogin:            mustGet[string]("SMTP_USER"),
@@ -58,8 +60,21 @@ func mustGet[T any](key string) T {
 	if val == "" {
 		log.Fatalf("missing required environment variable: %s", key)
 	}
+	return castEnvValue[T](val, key)
+}
 
+func getWithDefault[T any](key string, defaultVal T) T {
+	val := os.Getenv(key)
+	if val == "" {
+		log.Printf("missing optional environment variable: %s, using default value: %v", key, defaultVal)
+		return defaultVal
+	}
+	return castEnvValue[T](val, key)
+}
+
+func castEnvValue[T any](val string, key string) T {
 	var zero T
+
 	switch any(zero).(type) {
 	case string:
 		return any(val).(T)
@@ -72,7 +87,8 @@ func mustGet[T any](key string) T {
 	default:
 		log.Fatalf("unsupported type for env variable: %T", zero)
 	}
-	return zero
+
+	return zero // unreachable, но нужен для компиляции
 }
 
 func getRootDir() string {
