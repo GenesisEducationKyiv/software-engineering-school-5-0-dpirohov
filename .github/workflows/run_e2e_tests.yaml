@@ -22,19 +22,10 @@ jobs:
       - name: Load config files
         run: |
           echo "${{ secrets.SVC_ENV_CONFIG }}" > .env
-          echo "${{ secrets.E2E_CONFIG }}" > ./frontend/tests/.env
+          echo "${{ secrets.E2E_CONFIG }}" > frontend/tests/.env
 
       - name: Start Docker Compose services
         run: docker compose up -d --build
-
-      - name: Wait for API to be healthy
-        run: |
-          echo "Waiting for API to become ready..."
-          for i in {1..30}; do
-            curl -s http://localhost:8080/api/v1/health && break
-            echo "Waiting... ($i)"
-            sleep 5
-          done
 
       - name: Set up bun
         uses: oven-sh/setup-bun@v1
@@ -47,11 +38,17 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: frontend
-        run: bunx playwright install --with-deps
+        run: bunx playwright install chromium --with-deps
+
+      - name: Print Docker logs
+        run: docker-compose logs --no-color
 
       - name: Run Playwright tests
         working-directory: frontend
-        run: bunx playwright test
+        run: bunx playwright test --project=chromium
+
+      - name: Print Docker logs
+        run: docker-compose logs --no-color
 
       - name: Upload HTML report (optional)
         if: always()

@@ -64,7 +64,7 @@ func NewServer(cfg *config.Config, broker broker.EventBusInterface) *http.Server
 	}
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", NewServer.config.Port),
+		Addr:         fmt.Sprintf("0.0.0.0:%d", NewServer.config.Port),
 		Handler:      NewServer.RegisterRoutes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
