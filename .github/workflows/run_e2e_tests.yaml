@@ -21,9 +21,12 @@ jobs:
 
       - name: Load config files
         run: |
-          echo "${{ secrets.SVC_ENV_CONFIG }}" > ./.env
+          echo "${{ secrets.SVC_ENV_CONFIG }}" > ${{ github.workspace }}/.env
           echo "${{ secrets.E2E_CONFIG }}" > frontend/tests/.env
-
+      - name: Debug CWD & .env
+        run: |
+          echo "PWD = $(pwd)"
+          ls -la
       - name: Start Docker Compose services
         run: docker compose up -d --build
         working-directory: ${{ github.workspace }}
