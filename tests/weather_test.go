@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"weatherApi/internal/common/utils"
+	"weatherApi/internal/dto"
 
-	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/server/routes"
 	"weatherApi/internal/service/weather"
@@ -19,18 +20,19 @@ import (
 
 func TestWeatherHandler_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	mockResp := utils.RandomWeatherAPIResponse()
 
-	mockProvider := &provider.MockProvider{
-		Response: &provider.WeatherResponse{
-			Temperature: 25.5,
-			Humidity:    60,
-			Description: "Sunny",
-		},
-		Err: nil,
-	}
+	mockAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(mockResp); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
+
+	mainProvider := provider.NewWeatherApiProvider("test", mockAPI.URL)
 
 	mockFallbackProvider := &provider.MockProvider{
-		Response: &provider.WeatherResponse{
+		Response: &dto.WeatherResponse{
 			Temperature: 0,
 			Humidity:    33,
 			Description: "Cloudy",
@@ -38,10 +40,7 @@ func TestWeatherHandler_Success(t *testing.T) {
 		Err: nil,
 	}
 
-	svc := &weather.WeatherService{
-		MainProvider:     mockProvider,
-		FallbackProvider: mockFallbackProvider,
-	}
+	svc := weather.NewWeatherService(mainProvider, mockFallbackProvider)
 
 	handler := routes.NewWeatherHandler(svc)
 
@@ -55,22 +54,20 @@ func TestWeatherHandler_Success(t *testing.T) {
 	router.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
-	var actualResponse provider.WeatherResponse
+	var actualResponse dto.WeatherResponse
 	err := json.Unmarshal(resp.Body.Bytes(), &actualResponse)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 25.5, actualResponse.Temperature)
-	assert.Equal(t, 60, actualResponse.Humidity)
-	assert.Equal(t, "Sunny", actualResponse.Description)
+	assert.Equal(t, mockResp.Current.Temperature, actualResponse.Temperature)
+	assert.Equal(t, mockResp.Current.Humidity, actualResponse.Humidity)
+	assert.Equal(t, mockResp.Current.Condition.Text, actualResponse.Description)
 }
 
 func TestWeatherHandler_MissingCity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	svc := &weather.WeatherService{
-		MainProvider:     &provider.MockProvider{},
-		FallbackProvider: &provider.MockProvider{},
-	}
+	svc := weather.NewWeatherService(&provider.MockProvider{}, &provider.MockProvider{})
+
 	handler := routes.NewWeatherHandler(svc)
 
 	router := gin.Default()
@@ -89,24 +86,28 @@ func TestWeatherHandler_MissingCity(t *testing.T) {
 func TestWeatherHandler_FallbackUsed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	mainProvider := &provider.MockProvider{
-		Response: nil,
-		Err:      errors.New(500, "main failed", nil),
-	}
+	mockWeatherAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"error": "Internal server Error",
+		}); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
 
-	fallbackProvider := &provider.MockProvider{
-		Response: &provider.WeatherResponse{
-			Temperature: 15.0,
-			Humidity:    80,
-			Description: "Cloudy",
-		},
-		Err: nil,
-	}
+	mockOpenWeatherMapResp := utils.RandomOpenweatherMapAPIResponse()
+	mockOpenWeatherMapAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(mockOpenWeatherMapResp); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
 
-	svc := &weather.WeatherService{
-		MainProvider:     mainProvider,
-		FallbackProvider: fallbackProvider,
-	}
+	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
+	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
+
+	svc := weather.NewWeatherService(mainProvider, fallbackProvider)
 
 	handler := routes.NewWeatherHandler(svc)
 
@@ -120,38 +121,41 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 	router.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
-	var actualResponse provider.WeatherResponse
+	var actualResponse dto.WeatherResponse
 
 	err := json.Unmarshal(resp.Body.Bytes(), &actualResponse)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 15.0, actualResponse.Temperature)
-	assert.Equal(t, 80, actualResponse.Humidity)
-	assert.Equal(t, "Cloudy", actualResponse.Description)
+	assert.Equal(t, mockOpenWeatherMapResp.Main.Temperature, actualResponse.Temperature)
+	assert.Equal(t, mockOpenWeatherMapResp.Main.Humidity, actualResponse.Humidity)
+	assert.Equal(t, mockOpenWeatherMapResp.Weather[0].Description, actualResponse.Description)
 }
 
 func TestCityNotFound(t *testing.T) {
 	// Service trusts it's main provider on city search as it's more reliable so we do not fall to second provider if first returns 404
 	gin.SetMode(gin.TestMode)
+	mockWeatherAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"error": "City not found",
+		}); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
 
-	mainProvider := &provider.MockProvider{
-		Response: nil,
-		Err:      errors.New(404, "City not found", nil),
-	}
+	mockOpenWeatherMapResp := utils.RandomOpenweatherMapAPIResponse()
+	mockOpenWeatherMapAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(mockOpenWeatherMapResp); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
 
-	fallbackProvider := &provider.MockProvider{
-		Response: &provider.WeatherResponse{
-			Temperature: 15.0,
-			Humidity:    80,
-			Description: "Cloudy",
-		},
-		Err: nil,
-	}
+	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
+	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
 
-	svc := &weather.WeatherService{
-		MainProvider:     mainProvider,
-		FallbackProvider: fallbackProvider,
-	}
+	svc := weather.NewWeatherService(mainProvider, fallbackProvider)
 
 	handler := routes.NewWeatherHandler(svc)
 
@@ -166,4 +170,37 @@ func TestCityNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.Code)
 	assert.Contains(t, resp.Body.String(), "City not found")
+}
+
+func TestWeatherHandler_RealProviderWithMockedAPI(t *testing.T) {
+	mockResp := utils.RandomOpenweatherMapAPIResponse()
+
+	mockAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(mockResp); err != nil {
+			t.Fatalf("failed to encode mock response: %v", err)
+		}
+	}))
+	defer mockAPI.Close()
+
+	prov := provider.NewOpenWeatherApiProvider("test", mockAPI.URL)
+
+	svc := weather.NewWeatherService(prov)
+	handler := routes.NewWeatherHandler(svc)
+
+	router := gin.Default()
+	router.GET("/weather", handler.GetWeather)
+
+	req := httptest.NewRequest(http.MethodGet, "/weather?city=Kyiv", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	var data dto.WeatherResponse
+	err := json.Unmarshal(resp.Body.Bytes(), &data)
+	assert.NoError(t, err)
+	assert.Equal(t, mockResp.Main.Temperature, data.Temperature)
+	assert.Equal(t, mockResp.Main.Humidity, data.Humidity)
+	assert.Equal(t, mockResp.Weather[0].Description, data.Description)
 }
