@@ -61,7 +61,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
 	if err != nil {
 		if errors.Is(err, base.ErrNotFound) {
-			newSub := &subscription.SubscriptionModel{
+			existing = &subscription.SubscriptionModel{
 				City:         subscribeRequest.City,
 				Frequency:    constants.Frequency(subscribeRequest.Frequency),
 				UserID:       user.ID,
@@ -70,10 +70,9 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 				TokenExpires: expiry,
 			}
 
-			if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
+			if err := s.SubscriptionRepo.CreateOne(existing); err != nil {
 				return serviceErrors.ErrInternalServerError
 			}
-			return nil
 		} else {
 			return serviceErrors.ErrInternalServerError
 		}
@@ -101,7 +100,6 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 		log.Println("Error marshaling confirmation event")
 		return serviceErrors.ErrInternalServerError
 	}
-
 	if err := s.publisher.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
 		log.Println("Error publishing confirmation event")
 		return serviceErrors.ErrInternalServerError

@@ -44,6 +44,9 @@ func TestSubscribeSuccess(t *testing.T) {
 		CreateOneFn: func(_ *subscription.SubscriptionModel) error {
 			return nil
 		},
+		UpdateFn: func(entity *subscription.SubscriptionModel) error {
+			return nil
+		},
 	}
 
 	publisher := broker.NewMockRabbitMQPublisher()
