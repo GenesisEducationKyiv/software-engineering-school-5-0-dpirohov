@@ -21,20 +21,20 @@ import (
 type SubscriptionService struct {
 	SubscriptionRepo subscription.SubscriptionRepositoryInterface
 	UserRepo         user.UserRepositoryInterface
-	rmq              broker.EventBusInterface
+	publisher        broker.EventPublisher
 	tokenLifeMinutes int
 }
 
 func NewSubscriptionService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,
 	userRepo user.UserRepositoryInterface,
-	rmq broker.EventBusInterface,
+	publisher broker.EventPublisher,
 	tokenLifeMinutes int,
 ) *SubscriptionService {
 	return &SubscriptionService{
 		SubscriptionRepo: subscriptionRepo,
 		UserRepo:         userRepo,
-		rmq:              rmq,
+		publisher:        publisher,
 		tokenLifeMinutes: tokenLifeMinutes,
 	}
 }
@@ -102,7 +102,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 		return serviceErrors.ErrInternalServerError
 	}
 
-	if err := s.rmq.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
+	if err := s.publisher.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
 		log.Println("Error publishing confirmation event")
 		return serviceErrors.ErrInternalServerError
 	}

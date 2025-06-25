@@ -46,9 +46,9 @@ func TestSubscribeSuccess(t *testing.T) {
 		},
 	}
 
-	rmq := broker.NewMockRabbitMQBus()
+	publisher := broker.NewMockRabbitMQPublisher()
 
-	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, rmq, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, publisher, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
