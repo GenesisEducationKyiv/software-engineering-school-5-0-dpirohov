@@ -3,6 +3,7 @@ import {useForm, TextFieldElement, SelectElement} from 'react-hook-form-mui';
 import {FC, useState} from 'react';
 import {useNotifications} from '@toolpad/core';
 import {SubscriptionService} from '../../api';
+import {SUBSCRIBE_DIALOG_IDS} from '../../constants/test_ids';
 
 type CreateOrgDialogProps = {
     open: boolean;
@@ -54,7 +55,7 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
     ];
 
     return (
-        <Dialog open={open} onClose={onClose}>
+        <Dialog open={open} onClose={onClose} data-testid={SUBSCRIBE_DIALOG_IDS.dialog}>
             <DialogTitle>Subscribe for updates</DialogTitle>
             {pending ? (
                 <DialogContent sx={{display: 'flex', justifyContent: 'center', p: 6}}>
@@ -75,8 +76,24 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
             ) : (
                 <form onSubmit={handleSubmit(onSubmit)} noValidate>
                     <DialogContent sx={{display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300}}>
-                        <TextFieldElement name="city" label={'City'} required fullWidth autoFocus control={control} />
-                        <TextFieldElement name="email" label={'Email'} required fullWidth autoFocus control={control} />
+                        <TextFieldElement
+                            name="city"
+                            label={'City'}
+                            required
+                            fullWidth
+                            autoFocus
+                            control={control}
+                            data-testid={SUBSCRIBE_DIALOG_IDS.cityInput}
+                        />
+                        <TextFieldElement
+                            name="email"
+                            label={'Email'}
+                            required
+                            fullWidth
+                            autoFocus
+                            control={control}
+                            data-testid={SUBSCRIBE_DIALOG_IDS.emailInput}
+                        />
                         <SelectElement
                             label={'Frequency'}
                             size="small"
@@ -85,6 +102,7 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
                             options={frequencyData}
                             fullWidth
                             required={false}
+                            data-testid={SUBSCRIBE_DIALOG_IDS.frequencySelect}
                         />
                     </DialogContent>
                     <DialogActions>
@@ -96,7 +114,7 @@ const SubscribeDialog: FC<CreateOrgDialogProps> = ({open, onClose}) => {
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" variant="contained" disabled={false}>
+                        <Button type="submit" variant="contained" disabled={false} data-testid={SUBSCRIBE_DIALOG_IDS.subscribeButton}>
                             Subscribe
                         </Button>
                     </DialogActions>

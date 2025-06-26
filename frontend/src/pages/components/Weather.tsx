@@ -5,6 +5,7 @@ import {Box, Button, Card, CardContent, IconButton, InputAdornment, Stack, Typog
 import SearchIcon from '@mui/icons-material/Search';
 import {useDialogs} from '@toolpad/core';
 import SubscribeDialog from './SubscribeDialog';
+import {MAIN_PAGE_IDS} from '../../constants/test_ids';
 
 type FormData = {
     city: string;
@@ -48,37 +49,54 @@ const WeatherBlock: FC<WeatherProps> = ({temperature, humidity, description, cit
                         input: {
                             endAdornment: (
                                 <InputAdornment position="end">
-                                    <IconButton onClick={handleSubmit(onSubmit)} edge="end" size="small">
+                                    <IconButton
+                                        onClick={handleSubmit(onSubmit)}
+                                        edge="end"
+                                        size="small"
+                                        data-testid={MAIN_PAGE_IDS.searchButton}
+                                    >
                                         <SearchIcon />
                                     </IconButton>
                                 </InputAdornment>
                             ),
                         },
                     }}
+                    data-testid={MAIN_PAGE_IDS.searchInput}
                 />
             </form>
             <Stack direction={'row'} spacing={2}>
                 <Card variant="outlined" sx={{flex: 1}}>
                     <CardContent>
                         <Typography variant="caption">Temperature</Typography>
-                        <Typography variant="h4">{temperature}°C</Typography>
+                        <Typography variant="h4" data-testid={MAIN_PAGE_IDS.tempValue}>
+                            {temperature}°C
+                        </Typography>
                     </CardContent>
                 </Card>
                 <Card variant="outlined" sx={{flex: 1}}>
                     <CardContent>
                         <Typography variant="caption">Humidity</Typography>
-                        <Typography variant="h4">{humidity}%</Typography>
+                        <Typography variant="h4" data-testid={MAIN_PAGE_IDS.humidityValue}>
+                            {humidity}%
+                        </Typography>
                     </CardContent>
                 </Card>
             </Stack>
             <Card variant="outlined">
                 <CardContent>
                     <Typography variant="caption">Description for weather in {city}</Typography>
-                    <Typography variant="h4">{description}</Typography>
+                    <Typography variant="h4" data-testid={MAIN_PAGE_IDS.descriptionValue}>
+                        {description}
+                    </Typography>
                 </CardContent>
             </Card>
             <Box display="flex" justifyContent="center" mt={2}>
-                <Button variant="contained" color="primary" onClick={() => setSubscribeOpen(true)}>
+                <Button
+                    data-testid={MAIN_PAGE_IDS.subscribeButton}
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setSubscribeOpen(true)}
+                >
                     Subscribe for updates
                 </Button>
             </Box>
