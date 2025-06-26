@@ -22,12 +22,12 @@ import (
 
 type Server struct {
 	config              *config.Config
-	WeatherService      *serviceWeather.Service
+	WeatherService      *serviceWeather.WeatherService
 	SubscriptionService *serviceSubscription.SubscriptionService
 	HealthCheckService  serviceHealthcheck.HealthCheckService
 }
 
-func NewServer(cfg *config.Config, broker broker.EventBusInterface) *http.Server {
+func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
@@ -45,8 +45,8 @@ func NewServer(cfg *config.Config, broker broker.EventBusInterface) *http.Server
 	subscriptionRepo := repoSubscription.NewSubscriptionRepository(gormDB)
 
 	weatherService := serviceWeather.NewWeatherService(
-		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey, "http://api.openweathermap.org/data/2.5/weather"),
-		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey, "http://api.weatherapi.com/v1/current.json"),
+		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey),
+		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey),
 	)
 	subscriptionService := serviceSubscription.NewSubscriptionService(
 		subscriptionRepo,

@@ -44,11 +44,14 @@ func TestSubscribeSuccess(t *testing.T) {
 		CreateOneFn: func(_ *subscription.SubscriptionModel) error {
 			return nil
 		},
+		UpdateFn: func(entity *subscription.SubscriptionModel) error {
+			return nil
+		},
 	}
 
-	rmq := broker.NewMockRabbitMQBus()
+	publisher := broker.NewMockRabbitMQPublisher()
 
-	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, rmq, 60)
+	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, publisher, 60)
 	handler := routes.NewSubscriptionHandler(service)
 	router := setupTestRouter(handler)
 
