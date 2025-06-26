@@ -22,7 +22,7 @@ export class Subscription {
     public id?: number;
     public city: string;
     public frequency: Frequency;
-    public userId: number;
+    public userId?: number;
     public isConfirmed: boolean;
     public confirmToken: string;
     public tokenExpires: Date;

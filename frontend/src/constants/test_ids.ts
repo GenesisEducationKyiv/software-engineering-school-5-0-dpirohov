@@ -19,3 +19,8 @@ export const CONFIRM_PAGE_IDS = {
     confirmation: 'confirm-result-text',
     linkToMainPage: 'confirm-link-to-main',
 };
+
+export const UNSUBSCRIBE_PAGE_IDS = {
+    confirmation: 'unsubscribe-result-text',
+    linkToMainPage: 'unsubscribe-link-to-main',
+};
