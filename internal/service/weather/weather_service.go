@@ -2,7 +2,6 @@ package weather
 
 import (
 	"log"
-	"os"
 
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
@@ -13,10 +12,10 @@ type WeatherService struct {
 	FallbackProvider provider.WeatherProviderInterface
 }
 
-func NewWeatherService() *WeatherService {
+func NewWeatherService(mainProvider, fallbackProvider provider.WeatherProviderInterface) *WeatherService {
 	return &WeatherService{
-		MainProvider:     provider.NewOpenWeatherApiProvider(os.Getenv("OPENWEATHER__API_KEY")),
-		FallbackProvider: provider.NewWeatherApiProvider(os.Getenv("WEATHER_API_API_KEY")),
+		MainProvider:     mainProvider,
+		FallbackProvider: fallbackProvider,
 	}
 }
 

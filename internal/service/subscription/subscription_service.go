@@ -1,14 +1,16 @@
 package subscription
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
 	"time"
+	"weatherApi/internal/broker"
 	"weatherApi/internal/repository/base"
 
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
 	"weatherApi/internal/dto"
-	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/subscription"
 	"weatherApi/internal/repository/user"
 	serviceErrors "weatherApi/internal/service/subscription/errors"
@@ -19,20 +21,20 @@ import (
 type SubscriptionService struct {
 	SubscriptionRepo subscription.SubscriptionRepositoryInterface
 	UserRepo         user.UserRepositoryInterface
-	smtpClient       provider.SMTPClientInterface
+	publisher        broker.EventPublisher
 	tokenLifeMinutes int
 }
 
 func NewSubscriptionService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,
 	userRepo user.UserRepositoryInterface,
-	smtpClient provider.SMTPClientInterface,
+	publisher broker.EventPublisher,
 	tokenLifeMinutes int,
 ) *SubscriptionService {
 	return &SubscriptionService{
 		SubscriptionRepo: subscriptionRepo,
 		UserRepo:         userRepo,
-		smtpClient:       smtpClient,
+		publisher:        publisher,
 		tokenLifeMinutes: tokenLifeMinutes,
 	}
 }
@@ -59,7 +61,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
 	if err != nil {
 		if errors.Is(err, base.ErrNotFound) {
-			newSub := &subscription.SubscriptionModel{
+			existing = &subscription.SubscriptionModel{
 				City:         subscribeRequest.City,
 				Frequency:    constants.Frequency(subscribeRequest.Frequency),
 				UserID:       user.ID,
@@ -68,10 +70,9 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 				TokenExpires: expiry,
 			}
 
-			if err := s.SubscriptionRepo.CreateOne(newSub); err != nil {
+			if err := s.SubscriptionRepo.CreateOne(existing); err != nil {
 				return serviceErrors.ErrInternalServerError
 			}
-			return nil
 		} else {
 			return serviceErrors.ErrInternalServerError
 		}
@@ -89,10 +90,21 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 		return serviceErrors.ErrInternalServerError
 	}
 
-	if err := s.smtpClient.SendConfirmationToken(subscribeRequest.Email, token, subscribeRequest.City); err != nil {
+	task := dto.ConfirmationEmailTask{
+		Email: subscribeRequest.Email,
+		Token: token,
+		City:  subscribeRequest.City,
+	}
+	payload, err := json.Marshal(task)
+	if err != nil {
+		log.Println("Error marshaling confirmation event")
 		return serviceErrors.ErrInternalServerError
 	}
-
+	if err := s.publisher.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
+		log.Println("Error publishing confirmation event")
+		return serviceErrors.ErrInternalServerError
+	}
+	log.Printf("New task published! %s", task.Email)
 	return nil
 }
 

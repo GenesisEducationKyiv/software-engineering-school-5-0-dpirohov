@@ -2,56 +2,73 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+	"weatherApi/internal/broker"
+	"weatherApi/internal/config"
+	"weatherApi/internal/provider"
+	"weatherApi/internal/worker"
 
 	"weatherApi/internal/server"
 )
 
-func gracefulShutdown(apiServer *http.Server, done chan bool) {
-	// Create context that listens for the interrupt signal from the OS.
+func main() {
+	cfg := config.LoadConfig()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Listen for the interrupt signal.
+	smtpClient := provider.NewSMTPClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpLogin, cfg.SmtpPassword, cfg.AppURL)
+
+	publisher, err := broker.NewRabbitMQPublisher(cfg.BrokerURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ for publisher: %v", err)
+	}
+
+	subscriber, err := broker.NewRabbitMQSubscriber(cfg.BrokerURL, cfg.BrokerMaxRetries, publisher)
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ for RabbitMQ subscriber: %v", err)
+	}
+	if err := worker.StartConfirmationWorker(ctx, subscriber, smtpClient); err != nil {
+		log.Fatalf("Failed to start confirmation worker: %v", err)
+	}
+
+	server := server.NewServer(cfg, publisher)
+
+	done := make(chan bool, 1)
+
+	go gracefulShutdown(ctx, server, done, publisher)
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("HTTP server error: %v", err)
+	}
+
+	<-done
+	log.Println("Graceful shutdown complete.")
+}
+
+func gracefulShutdown(ctx context.Context, apiServer *http.Server, done chan bool, publishers ...broker.EventPublisher) {
 	<-ctx.Done()
 
 	log.Println("shutting down gracefully, press Ctrl+C again to force")
-	stop() // Allow Ctrl+C to force shutdown
 
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := apiServer.Shutdown(ctx); err != nil {
+
+	if err := apiServer.Shutdown(ctxTimeout); err != nil {
 		log.Printf("Server forced to shutdown with error: %v", err)
 	}
 
-	log.Println("Server exiting")
-
-	// Notify the main goroutine that the shutdown is complete
-	done <- true
-}
-
-func main() {
-	server := server.NewServer()
-
-	// Create a done channel to signal when the shutdown is complete
-	done := make(chan bool, 1)
-
-	// Run graceful shutdown in a separate goroutine
-	go gracefulShutdown(server, done)
-
-	err := server.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		panic(fmt.Sprintf("http server error: %s", err))
+	for i, pub := range publishers {
+		if err := pub.Close(); err != nil {
+			log.Printf("Error while closing RabbitMQ publisher #%d: %v", i, err)
+		}
 	}
 
-	// Wait for the graceful shutdown to complete
-	<-done
-	log.Println("Graceful shutdown complete.")
+	log.Println("Server exiting")
+	done <- true
 }
