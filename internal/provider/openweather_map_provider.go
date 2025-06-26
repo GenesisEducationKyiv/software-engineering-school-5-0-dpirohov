@@ -21,7 +21,7 @@ type OpenWeatherMapApiProvider struct {
 	url    string
 }
 
-func NewOpenWeatherApiProvider(apikey, url string) WeatherProviderInterface {
+func NewOpenWeatherApiProvider(apikey, url string) *OpenWeatherMapApiProvider {
 	return &OpenWeatherMapApiProvider{
 		apiKey: apikey,
 		url:    url,
