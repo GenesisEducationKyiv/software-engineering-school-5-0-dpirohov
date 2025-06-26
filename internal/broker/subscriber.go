@@ -35,6 +35,23 @@ func NewRabbitMQSubscriber(url string, maxRetries int, publisher EventPublisher)
 	return s, nil
 }
 
+func (r *RabbitMQSubscriber) Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error {
+	if err := r.connect(); err != nil {
+		log.Fatalf("RabbitMQSubscriber: failed to connectd to %s! err: %v", topic, err)
+	}
+
+	if err := r.declareQueues(topic); err != nil {
+		closeChannel(r.subCh)
+		closeConnection(r.conn)
+		return fmt.Errorf("error while declaring queues: %w", err)
+	}
+
+	go r.maintainConnection(ctx, topic, handler)
+
+	log.Printf("[Rabbit] subscribed to %s", topic)
+	return nil
+}
+
 func (r *RabbitMQSubscriber) connect() error {
 	conn, err := amqp.Dial(r.url)
 	if err != nil {
@@ -57,14 +74,7 @@ func (r *RabbitMQSubscriber) connect() error {
 	return nil
 }
 
-func (r *RabbitMQSubscriber) Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error {
-	go r.watchConnection(ctx, topic, handler)
-
-	log.Printf("[Rabbit] subscribed to %s", topic)
-	return nil
-}
-
-func (r *RabbitMQSubscriber) watchConnection(ctx context.Context, topic Topic, handler func([]byte) error) {
+func (r *RabbitMQSubscriber) maintainConnection(ctx context.Context, topic Topic, handler func([]byte) error) {
 	for {
 		err := r.consumeMessages(ctx, topic, handler)
 		if err != nil {
@@ -182,4 +192,14 @@ func (r *RabbitMQSubscriber) Close() error {
 		}
 	}
 	return firstErr
+}
+
+func (r *RabbitMQSubscriber) declareQueues(topic Topic) error {
+	for _, t := range []Topic{topic, DeadLetterQueue} {
+		if _, err := r.subCh.QueueDeclare(string(t), true, false, false, false, nil); err != nil {
+			return err
+		}
+		log.Printf("Queue %s created!", t)
+	}
+	return nil
 }

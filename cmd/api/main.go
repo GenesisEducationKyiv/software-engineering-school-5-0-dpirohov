@@ -16,6 +16,41 @@ import (
 	"weatherApi/internal/server"
 )
 
+func main() {
+	cfg := config.LoadConfig()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	smtpClient := provider.NewSMTPClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpLogin, cfg.SmtpPassword, cfg.AppURL)
+
+	publisher, err := broker.NewRabbitMQPublisher(cfg.BrokerURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ for publisher: %v", err)
+	}
+
+	subscriber, err := broker.NewRabbitMQSubscriber(cfg.BrokerURL, cfg.BrokerMaxRetries, publisher)
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ for RabbitMQ subscriber: %v", err)
+	}
+	if err := worker.StartConfirmationWorker(ctx, subscriber, smtpClient); err != nil {
+		log.Fatalf("Failed to start confirmation worker: %v", err)
+	}
+
+	server := server.NewServer(cfg, publisher)
+
+	done := make(chan bool, 1)
+
+	go gracefulShutdown(ctx, server, done, publisher)
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("HTTP server error: %v", err)
+	}
+
+	<-done
+	log.Println("Graceful shutdown complete.")
+}
+
 func gracefulShutdown(ctx context.Context, apiServer *http.Server, done chan bool, publishers ...broker.EventPublisher) {
 	<-ctx.Done()
 
@@ -36,44 +71,4 @@ func gracefulShutdown(ctx context.Context, apiServer *http.Server, done chan boo
 
 	log.Println("Server exiting")
 	done <- true
-}
-
-func main() {
-	cfg := config.LoadConfig()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	smtpClient := provider.NewSMTPClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpLogin, cfg.SmtpPassword, cfg.AppURL)
-
-	publisher, err := broker.NewRabbitMQPublisher(cfg.BrokerURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ for publisher: %v", err)
-	}
-
-	workerPublisher, err := broker.NewRabbitMQPublisher(cfg.BrokerURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ for publisher: %v", err)
-	}
-
-	subscriber, err := broker.NewRabbitMQSubscriber(cfg.BrokerURL, cfg.BrokerMaxRetries, workerPublisher)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ for RabbitMQ subscriber: %v", err)
-	}
-	if err := worker.StartConfirmationWorker(ctx, subscriber, smtpClient); err != nil {
-		log.Fatalf("Failed to start confirmation worker: %v", err)
-	}
-
-	server := server.NewServer(cfg, publisher)
-
-	done := make(chan bool, 1)
-
-	go gracefulShutdown(ctx, server, done, publisher, workerPublisher)
-
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("HTTP server error: %v", err)
-	}
-
-	<-done
-	log.Println("Graceful shutdown complete.")
 }

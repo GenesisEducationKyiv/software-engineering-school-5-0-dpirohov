@@ -34,7 +34,7 @@ func NewRabbitMQPublisher(url string) (EventPublisher, error) {
 	if err := publisher.connect(); err != nil {
 		return nil, err
 	}
-	go publisher.watchConnection()
+	go publisher.maintainConnection()
 	return publisher, nil
 }
 
@@ -50,33 +50,12 @@ func (r *RabbitMQPublisher) connect() error {
 		return fmt.Errorf("channel: %w", err)
 	}
 
-	if err := declareAllQueues(pubCh); err != nil {
-		closeChannel(pubCh)
-		closeConnection(conn)
-		return fmt.Errorf("declare queues: %w", err)
-	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.conn = conn
 	r.pubCh = pubCh
 	r.closeNotify = conn.NotifyClose(make(chan *amqp.Error, 1))
 	return nil
-}
-
-func (r *RabbitMQPublisher) watchConnection() {
-	for err := range r.closeNotify {
-		log.Printf("RabbitMQ connection closed: %v", err)
-		for {
-			time.Sleep(time.Second * 5)
-			log.Println("Attempting to connect to RabbitMQ...")
-			if err := r.connect(); err == nil {
-				log.Println("RabbitMQ reconnected successfully.")
-				break
-			}
-			log.Printf("Reconnect failed: %v", err)
-		}
-	}
 }
 
 func (r *RabbitMQPublisher) Publish(topic Topic, payload []byte, opts ...PublishOption) error {
@@ -96,6 +75,21 @@ func (r *RabbitMQPublisher) Publish(topic Topic, payload []byte, opts ...Publish
 		option(&pub)
 	}
 	return r.pubCh.Publish("", string(topic), false, false, pub)
+}
+
+func (r *RabbitMQPublisher) maintainConnection() {
+	for err := range r.closeNotify {
+		log.Printf("RabbitMQ connection closed: %v", err)
+		for {
+			time.Sleep(time.Second * 5)
+			log.Println("Attempting to connect to RabbitMQ...")
+			if err := r.connect(); err == nil {
+				log.Println("RabbitMQ reconnected successfully.")
+				break
+			}
+			log.Printf("Reconnect failed: %v", err)
+		}
+	}
 }
 
 func (r *RabbitMQPublisher) Close() error {
@@ -119,16 +113,6 @@ func (r *RabbitMQPublisher) Close() error {
 		}
 	}
 	return firstErr
-}
-
-func declareAllQueues(ch *amqp.Channel) error {
-	for _, t := range AllTopics {
-		if _, err := ch.QueueDeclare(string(t), true, false, false, false, nil); err != nil {
-			return err
-		}
-		log.Printf("Queue %s created!", t)
-	}
-	return nil
 }
 
 func closeConnection(conn *amqp.Connection) {
