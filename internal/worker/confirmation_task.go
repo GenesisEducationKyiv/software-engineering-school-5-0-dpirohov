@@ -9,8 +9,12 @@ import (
 	"weatherApi/internal/provider"
 )
 
-func StartConfirmationWorker(ctx context.Context, bus broker.EventBusInterface, smtpClient provider.SMTPClientInterface) error {
-	err := bus.Subscribe(ctx, broker.SubscriptionConfirmationTasks, func(data []byte) error {
+func StartConfirmationWorker(
+	ctx context.Context,
+	subscriber broker.EventSubscriber,
+	smtpClient provider.SMTPClientInterface,
+) error {
+	err := subscriber.Subscribe(ctx, broker.SubscriptionConfirmationTasks, func(data []byte) error {
 		var task dto.ConfirmationEmailTask
 		if err := json.Unmarshal(data, &task); err != nil {
 			log.Println("Failed to decode task:", err)
