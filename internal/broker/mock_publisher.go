@@ -3,7 +3,7 @@ package broker
 type MockRabbitMQPublisher struct {
 }
 
-func NewMockRabbitMQPublisher() EventPublisher {
+func NewMockRabbitMQPublisher() *MockRabbitMQPublisher {
 	return &MockRabbitMQPublisher{}
 }
 

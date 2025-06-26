@@ -23,7 +23,7 @@ type RabbitMQSubscriber struct {
 	maxRetries int
 }
 
-func NewRabbitMQSubscriber(url string, maxRetries int, publisher EventPublisher) (EventSubscriber, error) {
+func NewRabbitMQSubscriber(url string, maxRetries int, publisher EventPublisher) (*RabbitMQSubscriber, error) {
 	s := &RabbitMQSubscriber{
 		url:        url,
 		publisher:  publisher,

@@ -29,7 +29,7 @@ type RabbitMQPublisher struct {
 	mu          sync.Mutex
 }
 
-func NewRabbitMQPublisher(url string) (EventPublisher, error) {
+func NewRabbitMQPublisher(url string) (*RabbitMQPublisher, error) {
 	publisher := &RabbitMQPublisher{url: url}
 	if err := publisher.connect(); err != nil {
 		return nil, err
