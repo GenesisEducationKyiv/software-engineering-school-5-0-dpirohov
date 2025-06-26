@@ -28,6 +28,7 @@ func TestWeatherHandler_Success(t *testing.T) {
 			t.Fatalf("failed to encode mock response: %v", err)
 		}
 	}))
+	defer mockAPI.Close()
 
 	mainProvider := provider.NewWeatherApiProvider("test", mockAPI.URL)
 
@@ -95,6 +96,7 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 			t.Fatalf("failed to encode mock response: %v", err)
 		}
 	}))
+	defer mockWeatherAPI.Close()
 
 	mockOpenWeatherMapResp := utils.RandomOpenweatherMapAPIResponse()
 	mockOpenWeatherMapAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +105,7 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 			t.Fatalf("failed to encode mock response: %v", err)
 		}
 	}))
+	defer mockOpenWeatherMapAPI.Close()
 
 	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
 	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
@@ -143,6 +146,7 @@ func TestCityNotFound(t *testing.T) {
 			t.Fatalf("failed to encode mock response: %v", err)
 		}
 	}))
+	defer mockWeatherAPI.Close()
 
 	mockOpenWeatherMapResp := utils.RandomOpenweatherMapAPIResponse()
 	mockOpenWeatherMapAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +155,7 @@ func TestCityNotFound(t *testing.T) {
 			t.Fatalf("failed to encode mock response: %v", err)
 		}
 	}))
+	defer mockOpenWeatherMapAPI.Close()
 
 	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
 	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
