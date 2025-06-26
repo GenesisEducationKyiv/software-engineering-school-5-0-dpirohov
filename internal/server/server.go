@@ -45,8 +45,8 @@ func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
 	subscriptionRepo := repoSubscription.NewSubscriptionRepository(gormDB)
 
 	weatherService := serviceWeather.NewWeatherService(
-		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey, "http://api.openweathermap.org/data/2.5/weather"),
-		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey, "http://api.weatherapi.com/v1/current.json"),
+		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey, cfg.OpenWeatherAPIEndpoint),
+		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey, cfg.WeatherApiAPIEndpoint),
 	)
 	subscriptionService := serviceSubscription.NewSubscriptionService(
 		subscriptionRepo,
