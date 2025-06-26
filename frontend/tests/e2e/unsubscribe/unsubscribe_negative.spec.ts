@@ -6,7 +6,7 @@ import {User} from '../../core/models/user';
 import {Subscription} from '../../core/models/subscription';
 import {UnsubscribePage} from '../../pom/unsubscribePage';
 
-test.describe('Confirm subscription negative flow', () => {
+test.describe('Unsubscribe from updates, negative flow', () => {
     let ctx: Context;
     let mainPage: MainPage;
     let unsubscribePage: UnsubscribePage;
