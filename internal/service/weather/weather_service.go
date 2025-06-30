@@ -1,42 +1,28 @@
 package weather
 
 import (
-	"log"
+	"weatherApi/internal/dto"
 
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/provider"
 )
 
-type WeatherService struct {
-	MainProvider     provider.WeatherProviderInterface
-	FallbackProvider provider.WeatherProviderInterface
+type Service struct {
+	provider provider.WeatherProviderInterface
 }
 
-func NewWeatherService(mainProvider, fallbackProvider provider.WeatherProviderInterface) *WeatherService {
-	return &WeatherService{
-		MainProvider:     mainProvider,
-		FallbackProvider: fallbackProvider,
+func NewWeatherService(providers ...provider.WeatherProviderInterface) *Service {
+	if len(providers) == 0 {
+		panic("At least one provider required!")
 	}
+	for i := 0; i < len(providers)-1; i++ {
+		providers[i].SetNext(providers[i+1])
+	}
+	return &Service{provider: providers[0]}
 }
 
-func (service *WeatherService) GetWeather(
+func (service *Service) GetWeather(
 	city string,
-) (*provider.WeatherResponse, *errors.AppError) {
-	response, err := service.MainProvider.GetWeather(city)
-	if err == nil {
-		return response, nil
-	} else if err.Code != 500 {
-		return nil, err
-	}
-
-	log.Printf("Main provider error: %s; trying fallback", err.Message)
-
-	fallbackResponse, fallbackErr := service.FallbackProvider.GetWeather(city)
-
-	if fallbackErr != nil {
-		log.Printf("Fallback provider error: %s", fallbackErr.Message)
-		return nil, fallbackErr
-	}
-
-	return fallbackResponse, nil
+) (*dto.WeatherResponse, *errors.AppError) {
+	return service.provider.GetWeather(city)
 }
