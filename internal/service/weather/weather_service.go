@@ -12,6 +12,9 @@ type Service struct {
 }
 
 func NewWeatherService(providers ...provider.WeatherProviderInterface) *Service {
+	if len(providers) == 0 {
+		panic("At least one provider required!")
+	}
 	for i := 0; i < len(providers)-1; i++ {
 		providers[i].SetNext(providers[i+1])
 	}

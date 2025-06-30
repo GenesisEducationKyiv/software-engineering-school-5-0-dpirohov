@@ -48,14 +48,12 @@ func (w *WeatherApiProvider) GetWeather(city string) (*dto.WeatherResponse, *err
 		nil,
 	)
 	if err != nil {
-		log.Printf("WeatherApiProvider: request creation failed: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, err)
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("WeatherApiProvider: HTTP request failed: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, err)
 	}
 
 	defer func() {
@@ -65,16 +63,14 @@ func (w *WeatherApiProvider) GetWeather(city string) (*dto.WeatherResponse, *err
 	}()
 
 	if badResponse := w.checkApiResponse(response); badResponse != nil {
-		log.Printf("WeatherApiProvider: bad API response: %v", badResponse.Message)
 		if badResponse.Code == 500 {
-			return w.Next(city)
+			return TryNext(w, w.next, city, fmt.Errorf("bad API response: %v", badResponse.Message))
 		}
 		return nil, badResponse
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&weatherResponse); err != nil {
-		log.Printf("WeatherApiProvider: failed to decode response: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
 	}
 
 	return &dto.WeatherResponse{

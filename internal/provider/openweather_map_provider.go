@@ -49,14 +49,12 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*dto.WeatherRespons
 		nil,
 	)
 	if err != nil {
-		log.Printf("OpenWeatherMapApiProvider: request creation failed: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, fmt.Errorf("request creation failed: %w", err))
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("OpenWeatherMapApiProvider: HTTP request failed: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, fmt.Errorf("HTTP request failed: %w", err))
 	}
 
 	defer func() {
@@ -66,16 +64,14 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*dto.WeatherRespons
 	}()
 
 	if badResponse := w.checkApiResponse(response); badResponse != nil {
-		log.Printf("OpenWeatherMapApiProvider: bad API response: %v", badResponse.Message)
 		if badResponse.Code == 500 {
-			return w.Next(city)
+			return TryNext(w, w.next, city, fmt.Errorf("bad API response: %w", err))
 		}
 		return nil, badResponse
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&openWeatherMapResponse); err != nil {
-		log.Printf("OpenWeatherMapApiProvider: failed to decode response: %v", err)
-		return w.Next(city)
+		return TryNext(w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
 	}
 
 	var description string
