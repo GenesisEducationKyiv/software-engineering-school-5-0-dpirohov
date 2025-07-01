@@ -43,12 +43,30 @@ services:
       test: ["CMD-SHELL", "rabbitmqctl status"]
       interval: 10s
       retries: 5
+  redis:
+    image: redis:7
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    command: ["redis-server", "--requirepass", "secret"]
+
   api:
     build: .
     depends_on:
       db:
-        condition:  service_healthy
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -64,3 +82,4 @@ services:
 
 volumes:
   pg_data:
+  redis-data:
