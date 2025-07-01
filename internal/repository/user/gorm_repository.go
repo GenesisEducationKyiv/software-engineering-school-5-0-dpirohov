@@ -1,17 +1,18 @@
 package user
 
 import (
+	"context"
 	"weatherApi/internal/repository/base"
 
 	"gorm.io/gorm"
 )
 
 type UserRepositoryInterface interface {
-	FindOneOrNone(query any, args ...any) (*UserModel, error)
-	CreateOne(entity *UserModel) error
-	Update(entity *UserModel) error
-	Delete(entity *UserModel) error
-	FindOneOrCreate(conditions map[string]any, entity *UserModel) (*UserModel, error)
+	FindOneOrNone(ctx context.Context, query any, args ...any) (*UserModel, error)
+	CreateOne(ctx context.Context, entity *UserModel) error
+	Update(ctx context.Context, entity *UserModel) error
+	Delete(ctx context.Context, entity *UserModel) error
+	FindOneOrCreate(ctx context.Context, conditions map[string]any, entity *UserModel) (*UserModel, error)
 }
 
 type UserRepository struct {
