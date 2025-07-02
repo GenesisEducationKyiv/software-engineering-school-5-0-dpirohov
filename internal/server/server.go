@@ -7,8 +7,11 @@ import (
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/config"
+	"weatherApi/internal/metrics"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/weather"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/redis/go-redis/v9"
 
@@ -52,12 +55,15 @@ func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
 
 	userRepo := repoUser.NewUserRepository(gormDB)
 	subscriptionRepo := repoSubscription.NewSubscriptionRepository(gormDB)
+	cacheMetrics := metrics.NewCacheMetrics()
+	cacheMetrics.Register(prometheus.DefaultRegisterer)
 	cacheRepo := weather.NewWeatherRepository(&weather.RepositoryOptions{
 		Client:       rdb,
 		CacheTTL:     cfg.CacheTTL,
 		LockTTL:      cfg.LockTTL,
 		LockRetryDur: cfg.LockRetryDur,
 		LockMaxWait:  cfg.LockMaxWait,
+		Metrics:      cacheMetrics,
 	})
 
 	weatherService := serviceWeather.NewWeatherService(

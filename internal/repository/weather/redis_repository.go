@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"weatherApi/internal/metrics"
 
 	"weatherApi/internal/dto"
 
@@ -28,6 +29,7 @@ type Repository struct {
 	lockTTL      time.Duration
 	lockRetryDur time.Duration
 	lockMaxWait  time.Duration
+	metrics      *metrics.CacheMetrics
 }
 
 type RepositoryOptions struct {
@@ -36,6 +38,7 @@ type RepositoryOptions struct {
 	LockTTL      time.Duration
 	LockRetryDur time.Duration
 	LockMaxWait  time.Duration
+	Metrics      *metrics.CacheMetrics
 }
 
 func NewWeatherRepository(options *RepositoryOptions) *Repository {
@@ -45,6 +48,7 @@ func NewWeatherRepository(options *RepositoryOptions) *Repository {
 		lockTTL:      options.LockTTL,
 		lockRetryDur: options.LockRetryDur,
 		lockMaxWait:  options.LockMaxWait,
+		metrics:      options.Metrics,
 	}
 }
 
@@ -61,11 +65,12 @@ func (r *Repository) Get(ctx context.Context, city string) (*dto.WeatherResponse
 
 	data, err := r.client.Get(ctx, key).Result()
 	if errors.Is(err, redis.Nil) {
+		r.metrics.IncCacheMiss()
 		return nil, ErrCacheIsEmpty
 	} else if err != nil {
 		return nil, err
 	}
-
+	r.metrics.IncCacheHit()
 	var res dto.WeatherResponse
 	if err := json.Unmarshal([]byte(data), &res); err != nil {
 		return nil, err
@@ -94,11 +99,13 @@ func (r *Repository) WaitForUnlock(ctx context.Context, city string) (*dto.Weath
 	key := r.getCacheKey(city)
 	start := time.Now()
 
+	r.metrics.IncLockWait()
 	for {
 		time.Sleep(r.lockRetryDur)
 
 		data, err := r.client.Get(ctx, key).Result()
 		if err == nil {
+			r.metrics.ObserveLockWaitDuration(time.Since(start).Seconds())
 			var res dto.WeatherResponse
 			if err := json.Unmarshal([]byte(data), &res); err == nil {
 				return &res, nil
