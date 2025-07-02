@@ -33,7 +33,7 @@ type Config struct {
 
 	RootDir string
 
-	RedisUlr      string
+	RedisURL      string
 	RedisPassword string
 	CacheTTL      time.Duration
 	LockTTL       time.Duration
@@ -64,7 +64,7 @@ func LoadConfig() *Config {
 		SmtpLogin:              mustGet[string]("SMTP_USER"),
 		SmtpPassword:           mustGet[string]("SMTP_PASS"),
 		RootDir:                rootDir,
-		RedisUlr:               mustGet[string]("REDIS_URL"),
+		RedisURL:               mustGet[string]("REDIS_URL"),
 		RedisPassword:          mustGet[string]("REDIS_PWD"),
 		CacheTTL:               getWithDefault[time.Duration]("CACHE_TTL", 5*time.Minute),
 		LockTTL:                getWithDefault[time.Duration]("LOCK_TTL", 3*time.Second),

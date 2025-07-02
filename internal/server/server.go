@@ -48,7 +48,7 @@ func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisUlr,
+		Addr:     cfg.RedisURL,
 		Password: cfg.RedisPassword,
 		DB:       0,
 	})

@@ -101,21 +101,24 @@ func (r *Repository) WaitForUnlock(ctx context.Context, city string) (*dto.Weath
 
 	r.metrics.IncLockWait()
 	for {
-		time.Sleep(r.lockRetryDur)
-
-		data, err := r.client.Get(ctx, key).Result()
-		if err == nil {
-			r.metrics.ObserveLockWaitDuration(time.Since(start).Seconds())
-			var res dto.WeatherResponse
-			if err := json.Unmarshal([]byte(data), &res); err == nil {
-				return &res, nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(r.lockRetryDur):
+			data, err := r.client.Get(ctx, key).Result()
+			if err == nil {
+				r.metrics.ObserveLockWaitDuration(time.Since(start).Seconds())
+				var res dto.WeatherResponse
+				if err := json.Unmarshal([]byte(data), &res); err == nil {
+					return &res, nil
+				}
+			} else if !errors.Is(err, redis.Nil) {
+				return nil, err
 			}
-		} else if !errors.Is(err, redis.Nil) {
-			return nil, err
-		}
 
-		if time.Since(start) > r.lockMaxWait {
-			return nil, errors.New("timeout waiting for cache fill")
+			if time.Since(start) > r.lockMaxWait {
+				return nil, errors.New("timeout waiting for cache fill")
+			}
 		}
 	}
 }

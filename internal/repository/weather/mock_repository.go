@@ -2,8 +2,6 @@ package weather
 
 import (
 	"context"
-	"fmt"
-
 	"sync"
 
 	"weatherApi/internal/dto"
@@ -14,6 +12,8 @@ type MockCacheRepo struct {
 	data     map[string]*dto.WeatherResponse
 	locks    map[string]bool
 	lockCond map[string]*sync.Cond
+
+	GetFunc func(ctx context.Context, city string) (*dto.WeatherResponse, error)
 }
 
 func NewMockCacheRepo() *MockCacheRepo {
@@ -75,7 +75,7 @@ func (m *MockCacheRepo) WaitForUnlock(ctx context.Context, city string) (*dto.We
 
 	val, ok := m.data[city]
 	if !ok {
-		return nil, fmt.Errorf("not found")
+		return nil, ErrCacheIsEmpty
 	}
 	return val, nil
 }
@@ -89,5 +89,8 @@ func (m *MockCacheRepo) Set(ctx context.Context, city string, data *dto.WeatherR
 }
 
 func (m *MockCacheRepo) Get(ctx context.Context, city string) (*dto.WeatherResponse, error) {
+	if m.GetFunc != nil {
+		return m.GetFunc(ctx, city)
+	}
 	return m.WaitForUnlock(ctx, city)
 }

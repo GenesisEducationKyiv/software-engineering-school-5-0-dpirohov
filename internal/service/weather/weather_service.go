@@ -34,7 +34,8 @@ func (service *Service) GetWeather(
 ) (*dto.WeatherResponse, *appErrors.AppError) {
 	resp, err := service.cacheRepo.Get(ctx, city)
 	if err != nil && !errors.Is(err, weather.ErrCacheIsEmpty) {
-		log.Printf("Redis error: %v", err)
+		log.Printf("Redis error: %v, caching is skipped!", err)
+		return service.provider.GetWeather(city)
 	}
 	if resp != nil {
 		return resp, nil
@@ -52,14 +53,15 @@ func (service *Service) GetWeather(
 		if response != nil {
 			return response, nil
 		}
+	} else {
+		defer func(cacheRepo weather.CacheRepoInterface, ctx context.Context, city string) {
+			err := cacheRepo.ReleaseLock(ctx, city)
+			if err != nil {
+				log.Printf("Failed to release redis lock: %v", err)
+			}
+		}(service.cacheRepo, ctx, city)
 	}
 
-	defer func(cacheRepo weather.CacheRepoInterface, ctx context.Context, city string) {
-		err := cacheRepo.ReleaseLock(ctx, city)
-		if err != nil {
-			log.Printf("Failed to release redis lock: %v", err)
-		}
-	}(service.cacheRepo, ctx, city)
 	result, appErr := service.provider.GetWeather(city)
 	if appErr != nil {
 		return nil, appErr
