@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -39,7 +40,7 @@ func NewSubscriptionService(
 	}
 }
 
-func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
+func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
 	token, err := s.generateConfirmationToken()
 	if err != nil {
 		return serviceErrors.ErrInternalServerError
@@ -49,7 +50,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 		Email: subscribeRequest.Email,
 	}
 
-	user, err := s.UserRepo.FindOneOrCreate(map[string]any{
+	user, err := s.UserRepo.FindOneOrCreate(ctx, map[string]any{
 		"email": subscribeRequest.Email,
 	}, userModel)
 	if err != nil {
@@ -58,7 +59,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 
 	expiry := time.Now().Add(time.Duration(s.tokenLifeMinutes) * time.Minute)
 
-	existing, err := s.SubscriptionRepo.FindOneOrNone("user_id = ?", user.ID)
+	existing, err := s.SubscriptionRepo.FindOneOrNone(ctx, "user_id = ?", user.ID)
 	if err != nil {
 		if errors.Is(err, base.ErrNotFound) {
 			existing = &subscription.SubscriptionModel{
@@ -70,7 +71,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 				TokenExpires: expiry,
 			}
 
-			if err := s.SubscriptionRepo.CreateOne(existing); err != nil {
+			if err := s.SubscriptionRepo.CreateOne(ctx, existing); err != nil {
 				return serviceErrors.ErrInternalServerError
 			}
 		} else {
@@ -86,7 +87,7 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 	existing.TokenExpires = expiry
 	existing.Frequency = constants.Frequency(subscribeRequest.Frequency)
 
-	if err := s.SubscriptionRepo.Update(existing); err != nil {
+	if err := s.SubscriptionRepo.Update(ctx, existing); err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
@@ -108,8 +109,9 @@ func (s *SubscriptionService) Subscribe(subscribeRequest *dto.SubscribeRequest) 
 	return nil
 }
 
-func (s *SubscriptionService) ConfirmSubscription(token string) *commonErrors.AppError {
+func (s *SubscriptionService) ConfirmSubscription(ctx context.Context, token string) *commonErrors.AppError {
 	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		ctx,
 		"confirm_token = ? AND deleted_at IS NULL",
 		token,
 	)
@@ -131,15 +133,16 @@ func (s *SubscriptionService) ConfirmSubscription(token string) *commonErrors.Ap
 	subscription.IsConfirmed = true
 	subscription.ConfirmedAt = &now
 
-	if err := s.SubscriptionRepo.Update(subscription); err != nil {
+	if err := s.SubscriptionRepo.Update(ctx, subscription); err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
 	return nil
 }
 
-func (s *SubscriptionService) Unsubscribe(token string) *commonErrors.AppError {
+func (s *SubscriptionService) Unsubscribe(ctx context.Context, token string) *commonErrors.AppError {
 	subscription, err := s.SubscriptionRepo.FindOneOrNone(
+		ctx,
 		"confirm_token = ? AND is_confirmed = ?",
 		token,
 		true,
@@ -151,7 +154,7 @@ func (s *SubscriptionService) Unsubscribe(token string) *commonErrors.AppError {
 		return serviceErrors.ErrInternalServerError
 	}
 
-	if err := s.SubscriptionRepo.Delete(subscription); err != nil {
+	if err := s.SubscriptionRepo.Delete(ctx, subscription); err != nil {
 		return serviceErrors.ErrInternalServerError
 	}
 
