@@ -9,10 +9,10 @@ import (
 )
 
 type WeatherHandler struct {
-	service *weather.WeatherService
+	service *weather.Service
 }
 
-func NewWeatherHandler(weatherService *weather.WeatherService) *WeatherHandler {
+func NewWeatherHandler(weatherService *weather.Service) *WeatherHandler {
 	return &WeatherHandler{
 		service: weatherService,
 	}
@@ -26,7 +26,7 @@ func (h *WeatherHandler) GetWeather(c *gin.Context) {
 		return
 	}
 
-	response, err := h.service.GetWeather(city)
+	response, err := h.service.GetWeather(c, city)
 	if err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
