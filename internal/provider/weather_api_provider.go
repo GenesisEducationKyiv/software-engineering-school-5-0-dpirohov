@@ -7,38 +7,40 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"weatherApi/internal/dto"
 
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
 )
 
-type weatherAPIResponse struct {
-	Location struct {
-		Name    string `json:"name"`
-		Region  string `json:"region"`
-		Country string `json:"country"`
-	} `json:"location"`
-
-	Current struct {
-		Temperature float64 `json:"temp_c"`
-		Humidity    int     `json:"humidity"`
-		Condition   struct {
-			Text string `json:"text"`
-		} `json:"condition"`
-	} `json:"current"`
-}
+var _ WeatherProviderInterface = (*WeatherApiProvider)(nil)
 
 type WeatherApiProvider struct {
+	next   WeatherProviderInterface
 	apiKey string
 	url    string
 }
 
-func NewWeatherApiProvider(apikey string) WeatherProviderInterface {
-	return &WeatherApiProvider{apiKey: apikey, url: "http://api.weatherapi.com/v1/current.json"}
+func NewWeatherApiProvider(apikey, url string) *WeatherApiProvider {
+	return &WeatherApiProvider{
+		apiKey: apikey,
+		url:    url,
+	}
+}
+func (w *WeatherApiProvider) SetNext(next WeatherProviderInterface) {
+	w.next = next
 }
 
-func (w *WeatherApiProvider) GetWeather(city string) (*WeatherResponse, *errors.AppError) {
-	var weatherResponse weatherAPIResponse
+func (w *WeatherApiProvider) Next(city string) (*dto.WeatherResponse, *errors.AppError) {
+	if w.next != nil {
+		return w.next.GetWeather(city)
+	}
+	log.Printf("WeatherApiProvider: no providers left in chain!")
+	return nil, serviceErrors.ErrInternalServerError
+}
+
+func (w *WeatherApiProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+	var weatherResponse dto.WeatherAPIResponse
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -46,16 +48,12 @@ func (w *WeatherApiProvider) GetWeather(city string) (*WeatherResponse, *errors.
 		nil,
 	)
 	if err != nil {
-		return nil, w.handleInternalError(err)
+		return TryNext(w, w.next, city, err)
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, w.handleInternalError(err)
-	}
-
-	if badResponse := w.checkApiResponse(response); badResponse != nil {
-		return nil, badResponse
+		return TryNext(w, w.next, city, err)
 	}
 
 	defer func() {
@@ -64,11 +62,18 @@ func (w *WeatherApiProvider) GetWeather(city string) (*WeatherResponse, *errors.
 		}
 	}()
 
-	if err := json.NewDecoder(response.Body).Decode(&weatherResponse); err != nil {
-		return nil, w.handleInternalError(err)
+	if badResponse := w.checkApiResponse(response); badResponse != nil {
+		if badResponse.Code == 500 {
+			return TryNext(w, w.next, city, fmt.Errorf("bad API response: %v", badResponse.Message))
+		}
+		return nil, badResponse
 	}
 
-	return &WeatherResponse{
+	if err := json.NewDecoder(response.Body).Decode(&weatherResponse); err != nil {
+		return TryNext(w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
+	}
+
+	return &dto.WeatherResponse{
 		Temperature: weatherResponse.Current.Temperature,
 		Humidity:    weatherResponse.Current.Humidity,
 		Description: weatherResponse.Current.Condition.Text,
@@ -84,9 +89,4 @@ func (w *WeatherApiProvider) checkApiResponse(response *http.Response) *errors.A
 	default:
 		return serviceErrors.ErrInternalServerError
 	}
-}
-
-func (w *WeatherApiProvider) handleInternalError(err error) *errors.AppError {
-	log.Printf("WeatherApiProvider HTTP request failed: %v", err)
-	return errors.New(500, fmt.Errorf("internal server error: %w", err).Error(), err)
 }
