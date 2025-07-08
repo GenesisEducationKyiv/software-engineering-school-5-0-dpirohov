@@ -22,6 +22,11 @@ func (m *MockProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.Ap
 	}
 	return m.Response, nil
 }
+
+func (m *MockProvider) Name() string {
+	return "MockProvider"
+}
+
 func (m *MockProvider) SetNext(next WeatherProviderInterface) {
 	m.next = next
 }
