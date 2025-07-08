@@ -28,6 +28,10 @@ func NewOpenWeatherApiProvider(apikey, url string) *OpenWeatherMapApiProvider {
 	}
 }
 
+func (w *OpenWeatherMapApiProvider) Name() string {
+	return "OpenWeatherMap"
+}
+
 func (w *OpenWeatherMapApiProvider) SetNext(next WeatherProviderInterface) {
 	w.next = next
 }
