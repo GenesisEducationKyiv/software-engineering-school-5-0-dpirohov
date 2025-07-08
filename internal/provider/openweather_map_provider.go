@@ -7,40 +7,45 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"weatherApi/internal/dto"
 
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
 )
 
-type openweatherMapAPIResponse struct {
-	Main struct {
-		Temperature float64 `json:"temp"`
-		FeelsLike   float64 `json:"feels_like"`
-		Humidity    int     `json:"humidity"`
-	} `json:"main"`
-
-	Weather []struct {
-		ID          int    `json:"id"`
-		Main        string `json:"main"`
-		Description string `json:"description"`
-		Icon        string `json:"icon"`
-	} `json:"weather"`
-}
+var _ WeatherProviderInterface = (*WeatherApiProvider)(nil)
 
 type OpenWeatherMapApiProvider struct {
+	next   WeatherProviderInterface
 	apiKey string
 	url    string
 }
 
-func NewOpenWeatherApiProvider(apikey string) WeatherProviderInterface {
+func NewOpenWeatherApiProvider(apikey, url string) *OpenWeatherMapApiProvider {
 	return &OpenWeatherMapApiProvider{
 		apiKey: apikey,
-		url:    "http://api.openweathermap.org/data/2.5/weather",
+		url:    url,
 	}
 }
 
-func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *errors.AppError) {
-	var openWeatherMapResponse openweatherMapAPIResponse
+func (w *OpenWeatherMapApiProvider) Name() string {
+	return "OpenWeatherMap"
+}
+
+func (w *OpenWeatherMapApiProvider) SetNext(next WeatherProviderInterface) {
+	w.next = next
+}
+
+func (w *OpenWeatherMapApiProvider) Next(city string) (*dto.WeatherResponse, *errors.AppError) {
+	if w.next != nil {
+		return w.next.GetWeather(city)
+	}
+	log.Printf("OpenWeatherMapApiProvider: no providers left in chain!")
+	return nil, serviceErrors.ErrInternalServerError
+}
+
+func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+	var openWeatherMapResponse dto.OpenweatherMapAPIResponse
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -48,12 +53,12 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *
 		nil,
 	)
 	if err != nil {
-		return nil, w.handleInternalError(err)
+		return TryNext(w, w.next, city, fmt.Errorf("request creation failed: %w", err))
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, w.handleInternalError(err)
+		return TryNext(w, w.next, city, fmt.Errorf("HTTP request failed: %w", err))
 	}
 
 	defer func() {
@@ -62,8 +67,15 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *
 		}
 	}()
 
+	if badResponse := w.checkApiResponse(response); badResponse != nil {
+		if badResponse.Code == 500 {
+			return TryNext(w, w.next, city, fmt.Errorf("bad API response: %w", err))
+		}
+		return nil, badResponse
+	}
+
 	if err := json.NewDecoder(response.Body).Decode(&openWeatherMapResponse); err != nil {
-		return nil, w.handleInternalError(err)
+		return TryNext(w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
 	}
 
 	var description string
@@ -72,7 +84,7 @@ func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*WeatherResponse, *
 		description = openWeatherMapResponse.Weather[0].Description
 	}
 
-	return &WeatherResponse{
+	return &dto.WeatherResponse{
 		Temperature: openWeatherMapResponse.Main.Temperature,
 		Humidity:    openWeatherMapResponse.Main.Humidity,
 		Description: description,
@@ -88,9 +100,4 @@ func (w *OpenWeatherMapApiProvider) checkApiResponse(response *http.Response) *e
 	default:
 		return serviceErrors.ErrInternalServerError
 	}
-}
-
-func (w *OpenWeatherMapApiProvider) handleInternalError(err error) *errors.AppError {
-	log.Printf("OpenWeatherMapApiProvider HTTP request failed: %v", err)
-	return errors.New(500, fmt.Errorf("internal server error: %w", err).Error(), err)
 }

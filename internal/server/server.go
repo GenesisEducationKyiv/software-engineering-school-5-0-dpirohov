@@ -22,7 +22,7 @@ import (
 
 type Server struct {
 	config              *config.Config
-	WeatherService      *serviceWeather.WeatherService
+	WeatherService      *serviceWeather.Service
 	SubscriptionService *serviceSubscription.SubscriptionService
 	HealthCheckService  serviceHealthcheck.HealthCheckService
 }
@@ -45,8 +45,8 @@ func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
 	subscriptionRepo := repoSubscription.NewSubscriptionRepository(gormDB)
 
 	weatherService := serviceWeather.NewWeatherService(
-		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey),
-		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey),
+		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey, cfg.OpenWeatherAPIEndpoint),
+		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey, cfg.WeatherApiAPIEndpoint),
 	)
 	subscriptionService := serviceSubscription.NewSubscriptionService(
 		subscriptionRepo,

@@ -18,8 +18,10 @@ type Config struct {
 	BrokerURL        string
 	BrokerMaxRetries int
 
-	OpenWeatherAPIkey string
-	WeatherApiAPIkey  string
+	OpenWeatherAPIEndpoint string
+	OpenWeatherAPIkey      string
+	WeatherApiAPIEndpoint  string
+	WeatherApiAPIkey       string
 
 	TokenLifetimeMinutes int
 
@@ -38,20 +40,22 @@ func LoadConfig() *Config {
 		log.Printf("Failed to load .env file! Err: %v", err)
 	}
 	return &Config{
-		Host:                 mustGet[string]("HOST"),
-		Port:                 mustGet[int]("PORT"),
-		AppURL:               mustGet[string]("APP_URL"),
-		DatabaseURL:          mustGet[string]("DB_URL"),
-		BrokerURL:            mustGet[string]("BROKER_URL"),
-		BrokerMaxRetries:     getWithDefault[int]("RMQ_MAX_RETRIES", 3),
-		OpenWeatherAPIkey:    mustGet[string]("OPENWEATHER_API_KEY"),
-		WeatherApiAPIkey:     mustGet[string]("WEATHER_API_API_KEY"),
-		TokenLifetimeMinutes: getWithDefault[int]("TOKEN_LIFETIME_MINUTES", 15),
-		SmtpHost:             mustGet[string]("SMTP_HOST"),
-		SmtpPort:             mustGet[int]("SMTP_PORT"),
-		SmtpLogin:            mustGet[string]("SMTP_USER"),
-		SmtpPassword:         mustGet[string]("SMTP_PASS"),
-		RootDir:              rootDir,
+		Host:                   mustGet[string]("HOST"),
+		Port:                   mustGet[int]("PORT"),
+		AppURL:                 mustGet[string]("APP_URL"),
+		DatabaseURL:            mustGet[string]("DB_URL"),
+		BrokerURL:              mustGet[string]("BROKER_URL"),
+		BrokerMaxRetries:       getWithDefault[int]("RMQ_MAX_RETRIES", 3),
+		OpenWeatherAPIEndpoint: mustGet[string]("OPENWEATHER_API_ENDPOINT"),
+		OpenWeatherAPIkey:      mustGet[string]("OPENWEATHER_API_KEY"),
+		WeatherApiAPIEndpoint:  mustGet[string]("WEATHER_API_API_ENDPOINT"),
+		WeatherApiAPIkey:       mustGet[string]("WEATHER_API_API_KEY"),
+		TokenLifetimeMinutes:   getWithDefault[int]("TOKEN_LIFETIME_MINUTES", 15),
+		SmtpHost:               mustGet[string]("SMTP_HOST"),
+		SmtpPort:               mustGet[int]("SMTP_PORT"),
+		SmtpLogin:              mustGet[string]("SMTP_USER"),
+		SmtpPassword:           mustGet[string]("SMTP_PASS"),
+		RootDir:                rootDir,
 	}
 }
 
@@ -88,7 +92,7 @@ func castEnvValue[T any](val string, key string) T {
 		log.Fatalf("unsupported type for env variable: %T", zero)
 	}
 
-	return zero // unreachable, но нужен для компиляции
+	return zero
 }
 
 func getRootDir() string {

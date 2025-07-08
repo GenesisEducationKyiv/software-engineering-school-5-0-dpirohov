@@ -1,24 +1,39 @@
 package provider
 
 import (
-	"net/http"
+	"weatherApi/internal/dto"
+	serviceErrors "weatherApi/internal/service/weather/errors"
 
 	"weatherApi/internal/common/errors"
 )
 
 type MockProvider struct {
-	Response *WeatherResponse
+	next     WeatherProviderInterface
+	Response *dto.WeatherResponse
 	Err      *errors.AppError
 }
 
-func (m *MockProvider) GetWeather(city string) (*WeatherResponse, *errors.AppError) {
-	return m.Response, m.Err
+func (m *MockProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+	if m.Err != nil {
+		if m.Err.Code == 500 && m.next != nil {
+			return m.Next(city)
+		}
+		return nil, m.Err
+	}
+	return m.Response, nil
 }
 
-func (m *MockProvider) checkApiResponse(_ *http.Response) *errors.AppError {
-	return nil
+func (m *MockProvider) Name() string {
+	return "MockProvider"
 }
 
-func (m *MockProvider) handleInternalError(_ error) *errors.AppError {
-	return errors.New(500, "internal", nil)
+func (m *MockProvider) SetNext(next WeatherProviderInterface) {
+	m.next = next
+}
+
+func (m *MockProvider) Next(city string) (*dto.WeatherResponse, *errors.AppError) {
+	if m.next != nil {
+		return m.next.GetWeather(city)
+	}
+	return nil, serviceErrors.ErrInternalServerError
 }
