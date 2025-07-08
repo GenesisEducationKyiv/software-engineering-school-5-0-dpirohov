@@ -4,8 +4,9 @@ import {createBrowserRouter, RouterProvider} from 'react-router';
 import App from './App';
 import Layout from './layouts/dashboard';
 import DashboardPage from './pages';
-import ConfirmPage from "./pages/ConfirmationPage/ConfirmationPage";
+import ConfirmPage from './pages/ConfirmationPage/ConfirmationPage';
 import NotFound from './pages/NotFound/NotFound';
+import UnsubscribePage from './pages/UnsubscribePage/UnsubscribePage';
 
 const router = createBrowserRouter([
     {
@@ -24,6 +25,10 @@ const router = createBrowserRouter([
             {
                 path: '/confirm/:token',
                 element: <ConfirmPage />,
+            },
+            {
+                path: '/unsubscribe/:token',
+                element: <UnsubscribePage />,
             },
             {
                 path: '*',
