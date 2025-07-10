@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -31,6 +32,13 @@ type Config struct {
 	SmtpPassword string
 
 	RootDir string
+
+	RedisURL      string
+	RedisPassword string
+	CacheTTL      time.Duration
+	LockTTL       time.Duration
+	LockRetryDur  time.Duration
+	LockMaxWait   time.Duration
 }
 
 func LoadConfig() *Config {
@@ -56,9 +64,14 @@ func LoadConfig() *Config {
 		SmtpLogin:              mustGet[string]("SMTP_USER"),
 		SmtpPassword:           mustGet[string]("SMTP_PASS"),
 		RootDir:                rootDir,
+		RedisURL:               mustGet[string]("REDIS_URL"),
+		RedisPassword:          mustGet[string]("REDIS_PWD"),
+		CacheTTL:               getWithDefault[time.Duration]("CACHE_TTL", 5*time.Minute),
+		LockTTL:                getWithDefault[time.Duration]("LOCK_TTL", 3*time.Second),
+		LockRetryDur:           getWithDefault[time.Duration]("LOCK_RETRY_DUR", 100*time.Millisecond),
+		LockMaxWait:            getWithDefault[time.Duration]("LOCK_MAX_WAIT", 3*time.Second),
 	}
 }
-
 func mustGet[T any](key string) T {
 	val := os.Getenv(key)
 	if val == "" {
@@ -88,6 +101,12 @@ func castEnvValue[T any](val string, key string) T {
 			log.Fatalf("invalid int value for %s: %v", key, err)
 		}
 		return any(intVal).(T)
+	case time.Duration:
+		dur, err := time.ParseDuration(val)
+		if err != nil {
+			log.Fatalf("invalid duration value for %s: %v", key, err)
+		}
+		return any(dur).(T)
 	default:
 		log.Fatalf("unsupported type for env variable: %T", zero)
 	}

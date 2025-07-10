@@ -28,7 +28,7 @@ func (h *SubscriptionHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Subscribe(&req); err != nil {
+	if err := h.service.Subscribe(c, &req); err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
 	}
@@ -38,7 +38,7 @@ func (h *SubscriptionHandler) Subscribe(c *gin.Context) {
 
 func (h *SubscriptionHandler) ConfirmSubscription(c *gin.Context) {
 	token := c.Param("token")
-	if err := h.service.ConfirmSubscription(token); err != nil {
+	if err := h.service.ConfirmSubscription(c, token); err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
 	}
@@ -47,7 +47,7 @@ func (h *SubscriptionHandler) ConfirmSubscription(c *gin.Context) {
 
 func (h *SubscriptionHandler) Unsubscribe(c *gin.Context) {
 	token := c.Param("token")
-	if err := h.service.Unsubscribe(token); err != nil {
+	if err := h.service.Unsubscribe(c, token); err != nil {
 		c.AbortWithStatusJSON(err.Code, gin.H{"error": err.Message})
 		return
 	}

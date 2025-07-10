@@ -8,12 +8,14 @@ import (
 )
 
 type MockProvider struct {
-	next     WeatherProviderInterface
-	Response *dto.WeatherResponse
-	Err      *errors.AppError
+	next                WeatherProviderInterface
+	Response            *dto.WeatherResponse
+	Err                 *errors.AppError
+	GetWeatherCallCount int
 }
 
 func (m *MockProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+	m.GetWeatherCallCount++
 	if m.Err != nil {
 		if m.Err.Code == 500 && m.next != nil {
 			return m.Next(city)
