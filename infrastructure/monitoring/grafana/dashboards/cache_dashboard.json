@@ -200,9 +200,9 @@
       "targets": [
         {
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "cache_lock_wait_total{instance=\"host.docker.internal:8080\"}",
+          "expr": "rate(cache_lock_wait_seconds_count[1m])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -295,29 +295,18 @@
       "pluginVersion": "12.0.2",
       "targets": [
         {
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "cache_lock_wait_total{instance=\"host.docker.internal:8080\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "Cache locks total",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "cache_hit_total",
+          "expr": "increase(cache_total{result=\"hit\"}[1m])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
           "instant": false,
+          "interval": "",
           "legendFormat": "Cache hit total",
           "range": true,
           "refId": "B",
@@ -329,8 +318,8 @@
             "uid": "prometheus"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "cache_miss_total",
+          "editorMode": "code",
+          "expr": "increase(cache_total{result=\"miss\"}[1m])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -338,6 +327,23 @@
           "legendFormat": "Cache miss total",
           "range": true,
           "refId": "C",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "increase(cache_lock_wait_total{instance=\"host.docker.internal:8080\"}[1m])",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Cache locks total",
+          "range": true,
+          "refId": "A",
           "useBackend": false
         }
       ],
@@ -375,5 +381,5 @@
   "timezone": "browser",
   "title": "Weather Cache Metrics",
   "uid": "1abfd8c9-3191-4f9d-a49d-feb37aa2ff16",
-  "version": 1
+  "version": 6
 }
