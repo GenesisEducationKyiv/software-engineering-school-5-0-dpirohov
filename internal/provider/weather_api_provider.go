@@ -27,6 +27,11 @@ func NewWeatherApiProvider(apikey, url string) *WeatherApiProvider {
 		url:    url,
 	}
 }
+
+func (w *WeatherApiProvider) Name() string {
+	return "WeatherApi"
+}
+
 func (w *WeatherApiProvider) SetNext(next WeatherProviderInterface) {
 	w.next = next
 }

@@ -99,7 +99,6 @@ func (r *Repository) WaitForUnlock(ctx context.Context, city string) (*dto.Weath
 	key := r.getCacheKey(city)
 	start := time.Now()
 
-	r.metrics.IncLockWait()
 	for {
 		select {
 		case <-ctx.Done():
@@ -113,10 +112,12 @@ func (r *Repository) WaitForUnlock(ctx context.Context, city string) (*dto.Weath
 					return &res, nil
 				}
 			} else if !errors.Is(err, redis.Nil) {
+				r.metrics.ObserveLockWaitDuration(time.Since(start).Seconds())
 				return nil, err
 			}
 
 			if time.Since(start) > r.lockMaxWait {
+				r.metrics.ObserveLockWaitDuration(time.Since(start).Seconds())
 				return nil, errors.New("timeout waiting for cache fill")
 			}
 		}
