@@ -17,6 +17,7 @@ func main() {
 	defer cancel()
 
 	go handleShutdown(cancel)
+
 	cfg := config.LoadConfig()
 
 	smtpClient := provider.NewSMTPClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpLogin, cfg.SmtpPassword, cfg.AppURL)
@@ -28,18 +29,27 @@ func main() {
 
 	subscriber, err := broker.NewRabbitMQSubscriber(cfg.BrokerURL, cfg.BrokerMaxRetries, publisher)
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ for RabbitMQ subscriber: %v", err)
+		log.Fatalf("Failed to connect to RabbitMQ for subscriber: %v", err)
 	}
 
+	log.Println("Starting email workers...")
 
-	log.Println("Starting confirmation email worker...")
+	go func() {
+		if err := worker.StartConfirmationWorker(ctx, subscriber, smtpClient); err != nil {
+			log.Fatalf("ConfirmationWorker stopped with error: %v", err)
+		}
+	}()
 
-	if err := worker.StartConfirmationWorker(ctx, subscriber, smtpClient); err != nil {
-		log.Fatalf("Worker stopped with error: %v", err)
-	}
+	go func() {
+		if err := worker.StartSubscriptionWorker(ctx, subscriber, smtpClient); err != nil {
+			log.Fatalf("SubscriptionWorker stopped with error: %v", err)
+		}
+	}()
 
-	log.Println("Worker shut down cleanly.")
+	<-ctx.Done()
+	log.Println("Email service shutdown complete.")
 }
+
 
 func handleShutdown(cancel context.CancelFunc) {
 	sigChan := make(chan os.Signal, 1)

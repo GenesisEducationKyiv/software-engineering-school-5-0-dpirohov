@@ -158,7 +158,7 @@ func (r *RabbitMQSubscriber) getRetriesCount(headers map[string]any) int {
 
 func (r *RabbitMQSubscriber) sendToDLQ(msg amqp.Delivery, topic Topic, retries int) {
 	err := r.publisher.Publish(
-		DeadLetterQueue,
+		topic.DLQ(),
 		msg.Body,
 		WithHeaders(amqp.Table{
 			hdrRetries:       retries,
@@ -195,7 +195,7 @@ func (r *RabbitMQSubscriber) Close() error {
 }
 
 func (r *RabbitMQSubscriber) declareQueues(topic Topic) error {
-	for _, t := range []Topic{topic, DeadLetterQueue} {
+	for _, t := range []Topic{topic, topic.DLQ()} {
 		if _, err := r.subCh.QueueDeclare(string(t), true, false, false, false, nil); err != nil {
 			return err
 		}
