@@ -39,4 +39,4 @@ Service hosts UI files
 
 5. Tests need significant improvement, especially for database queries. This can be achieved using a seeded SQLite test database.
 
-6. Consider implementing interfaces for services, at this point they are skipped on purpose.
+6. Consider implementing interfaces for services, at this point they are skipped on purpose
