@@ -18,7 +18,7 @@ type SubscriptionRepositoryInterface interface {
 	CreateOne(ctx context.Context, entity *SubscriptionModel) error
 	Update(ctx context.Context, entity *SubscriptionModel) error
 	Delete(ctx context.Context, entity *SubscriptionModel) error
-	FindAllSubscriptionsByFrequency (ctx context.Context, frequency constants.Frequency) ([]SubscriptionModel, error)
+	FindAllSubscriptionsByFrequency(ctx context.Context, frequency constants.Frequency) ([]SubscriptionModel, error)
 }
 
 type SubscriptionRepository struct {

@@ -6,72 +6,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
-type Config struct {
-	Host string
-	Port int
+type Config struct{}
 
-	AppURL           string
-	DatabaseURL      string
-	BrokerURL        string
-	BrokerMaxRetries int
-
-	OpenWeatherAPIEndpoint string
-	OpenWeatherAPIkey      string
-	WeatherApiAPIEndpoint  string
-	WeatherApiAPIkey       string
-
-	TokenLifetimeMinutes int
-
-	SmtpHost     string
-	SmtpPort     int
-	SmtpLogin    string
-	SmtpPassword string
-
-	RootDir string
-
-	RedisURL      string
-	RedisPassword string
-	CacheTTL      time.Duration
-	LockTTL       time.Duration
-	LockRetryDur  time.Duration
-	LockMaxWait   time.Duration
-}
-
-func LoadConfig() *Config {
-	rootDir := getRootDir()
-	err := godotenv.Load(filepath.Join(rootDir, ".env"))
-	if err != nil {
-		log.Printf("Failed to load .env file! Err: %v", err)
-	}
-	return &Config{
-		Host:                   mustGet[string]("HOST"),
-		Port:                   mustGet[int]("PORT"),
-		AppURL:                 mustGet[string]("APP_URL"),
-		DatabaseURL:            mustGet[string]("DB_URL"),
-		BrokerURL:              mustGet[string]("BROKER_URL"),
-		BrokerMaxRetries:       getWithDefault[int]("RMQ_MAX_RETRIES", 3),
-		OpenWeatherAPIEndpoint: mustGet[string]("OPENWEATHER_API_ENDPOINT"),
-		OpenWeatherAPIkey:      mustGet[string]("OPENWEATHER_API_KEY"),
-		WeatherApiAPIEndpoint:  mustGet[string]("WEATHER_API_API_ENDPOINT"),
-		WeatherApiAPIkey:       mustGet[string]("WEATHER_API_API_KEY"),
-		TokenLifetimeMinutes:   getWithDefault[int]("TOKEN_LIFETIME_MINUTES", 15),
-		SmtpHost:               mustGet[string]("SMTP_HOST"),
-		SmtpPort:               mustGet[int]("SMTP_PORT"),
-		SmtpLogin:              mustGet[string]("SMTP_USER"),
-		SmtpPassword:           mustGet[string]("SMTP_PASS"),
-		RootDir:                rootDir,
-		RedisURL:               mustGet[string]("REDIS_URL"),
-		RedisPassword:          mustGet[string]("REDIS_PWD"),
-		CacheTTL:               getWithDefault[time.Duration]("CACHE_TTL", 5*time.Minute),
-		LockTTL:                getWithDefault[time.Duration]("LOCK_TTL", 3*time.Second),
-		LockRetryDur:           getWithDefault[time.Duration]("LOCK_RETRY_DUR", 100*time.Millisecond),
-		LockMaxWait:            getWithDefault[time.Duration]("LOCK_MAX_WAIT", 3*time.Second),
-	}
-}
 func mustGet[T any](key string) T {
 	val := os.Getenv(key)
 	if val == "" {

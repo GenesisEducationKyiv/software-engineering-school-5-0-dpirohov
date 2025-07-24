@@ -9,8 +9,7 @@ import (
 
 type SMTPClientInterface interface {
 	SendConfirmationToken(to, token, city string) error
-	SendSubscriptionWeatherData(data *dto.WeatherSubData) error
-
+	SendSubscriptionWeatherData(data *dto.WeatherResponse, user *dto.UserData) error
 }
 
 type SMTPClient struct {
@@ -60,12 +59,12 @@ func (c *SMTPClient) SendConfirmationToken(to, token, city string) error {
 	return d.DialAndSend(m)
 }
 
-func (c *SMTPClient) SendSubscriptionWeatherData(data *dto.WeatherSubData) error {
+func (c *SMTPClient) SendSubscriptionWeatherData(data *dto.WeatherResponse, user *dto.UserData) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", c.login)
-	m.SetHeader("To", data.Email)
+	m.SetHeader("To", user.Email)
 	m.SetHeader("Subject", "Weather subscription confimation")
-	unsubscribeUrl := fmt.Sprintf("%s/unsubscribe/%s", c.serverUrl, data.Token)
+	unsubscribeUrl := fmt.Sprintf("%s/unsubscribe/%s", c.serverUrl, user.Token)
 	htmlBody := fmt.Sprintf(`
 <!DOCTYPE html>
 <html lang="en">
@@ -110,15 +109,14 @@ func (c *SMTPClient) SendSubscriptionWeatherData(data *dto.WeatherSubData) error
     <div class="heading">🌤️ Weather Update</div>
     <div class="info">🌡️ <strong>Temperature:</strong> %.1f°C</div>
     <div class="info">💧 <strong>Humidity:</strong> %d%%</div>
-    <div class="info">📖 <strong>Conditions:</strong> %s</div>
+    <div class="info">📖 <strong>Conditions:</strong> %d</div>
     <div class="footer">You are receiving this weather update because you subscribed to weather notifications.</div>
     <div class="unsubscribe">
       👉 <a href="%s">Unsubscribe from future updates</a>
     </div>  </div>
 </body>
 </html>
-`, data.Weather.Temperature, data.Weather.Humidity, data.Weather.Humidity, unsubscribeUrl)
-
+`, data.Temperature, data.Humidity, data.Humidity, unsubscribeUrl)
 
 	m.SetBody("text/html", htmlBody)
 
