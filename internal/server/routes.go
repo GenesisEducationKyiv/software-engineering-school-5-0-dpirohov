@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"weatherApi/internal/server/routes"
 
 	"github.com/gin-contrib/cors"
@@ -20,6 +22,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 		AllowHeaders:     []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
+
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	api := r.Group("/api/v1")
 	{

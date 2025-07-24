@@ -1,19 +1,25 @@
 package provider
 
 import (
-	"net/http"
-
+	"log"
 	"weatherApi/internal/common/errors"
+	"weatherApi/internal/dto"
+	serviceErrors "weatherApi/internal/service/weather/errors"
 )
 
-type WeatherResponse struct {
-	Temperature float64 `json:"temperature"`
-	Humidity    int     `json:"humidity"`
-	Description string  `json:"description"`
+type WeatherProviderInterface interface {
+	SetNext(next WeatherProviderInterface)
+	GetWeather(city string) (*dto.WeatherResponse, *errors.AppError)
+	Name() string
 }
 
-type WeatherProviderInterface interface {
-	GetWeather(city string) (*WeatherResponse, *errors.AppError)
-	checkApiResponse(response *http.Response) *errors.AppError
-	handleInternalError(err error) *errors.AppError
+func TryNext(current WeatherProviderInterface, next WeatherProviderInterface, city string, err error) (*dto.WeatherResponse, *errors.AppError) {
+	log.Printf("%s: error: %v — trying next provider...", current.Name(), err)
+
+	if next != nil {
+		return next.GetWeather(city)
+	}
+
+	log.Printf("%s: no next provider available", current.Name())
+	return nil, serviceErrors.ErrInternalServerError
 }

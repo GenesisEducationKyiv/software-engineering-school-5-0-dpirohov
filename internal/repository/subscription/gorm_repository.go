@@ -1,20 +1,22 @@
 package subscription
 
 import (
+	"context"
 	"weatherApi/internal/repository/base"
 
 	"gorm.io/gorm"
 )
 
 type SubscriptionRepositoryInterface interface {
-	FindOneOrNone(query any, args ...any) (*SubscriptionModel, error)
+	FindOneOrNone(ctx context.Context, query any, args ...any) (*SubscriptionModel, error)
 	FindOneOrCreate(
+		ctx context.Context,
 		conditions map[string]any,
 		entity *SubscriptionModel,
 	) (*SubscriptionModel, error)
-	CreateOne(entity *SubscriptionModel) error
-	Update(entity *SubscriptionModel) error
-	Delete(entity *SubscriptionModel) error
+	CreateOne(ctx context.Context, entity *SubscriptionModel) error
+	Update(ctx context.Context, entity *SubscriptionModel) error
+	Delete(ctx context.Context, entity *SubscriptionModel) error
 }
 
 type SubscriptionRepository struct {
