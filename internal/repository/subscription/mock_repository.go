@@ -1,12 +1,16 @@
 package subscription
 
-import "context"
+import (
+	"context"
+	"weatherApi/internal/common/constants"
+)
 
 type MockSubscriptionRepository struct {
-	FindOneOrNoneFn func(query any, args ...any) (*SubscriptionModel, error)
-	CreateOneFn     func(entity *SubscriptionModel) error
-	UpdateFn        func(entity *SubscriptionModel) error
-	DeleteFn        func(entity *SubscriptionModel) error
+	FindOneOrNoneFn                   func(query any, args ...any) (*SubscriptionModel, error)
+	CreateOneFn                       func(entity *SubscriptionModel) error
+	UpdateFn                          func(entity *SubscriptionModel) error
+	DeleteFn                          func(entity *SubscriptionModel) error
+	FindAllSubscriptionsByFrequencyFn func() ([]SubscriptionModel, error)
 }
 
 func (m *MockSubscriptionRepository) FindOneOrNone(_ context.Context, q any, args ...any) (*SubscriptionModel, error) {
@@ -31,4 +35,8 @@ func (m *MockSubscriptionRepository) FindOneOrCreate(
 	model *SubscriptionModel,
 ) (*SubscriptionModel, error) {
 	return &SubscriptionModel{}, nil
+}
+
+func (m *MockSubscriptionRepository) FindAllSubscriptionsByFrequency(ctx context.Context, frequency constants.Frequency) ([]SubscriptionModel, error) {
+	return m.FindAllSubscriptionsByFrequencyFn()
 }

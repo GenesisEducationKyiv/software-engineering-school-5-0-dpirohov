@@ -27,13 +27,13 @@ import (
 )
 
 type Server struct {
-	config              *config.Config
+	config              *config.ApiServiceConfig
 	WeatherService      *serviceWeather.Service
 	SubscriptionService *serviceSubscription.SubscriptionService
 	HealthCheckService  serviceHealthcheck.HealthCheckService
 }
 
-func NewServer(cfg *config.Config, broker broker.EventPublisher) *http.Server {
+func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *http.Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
