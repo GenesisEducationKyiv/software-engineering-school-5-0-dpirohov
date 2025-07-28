@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,9 +32,10 @@ type Server struct {
 	WeatherService      *serviceWeather.Service
 	SubscriptionService *serviceSubscription.SubscriptionService
 	HealthCheckService  serviceHealthcheck.HealthCheckService
+	httpServer          *http.Server
 }
 
-func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *http.Server {
+func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Error),
@@ -79,20 +81,28 @@ func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *http
 	)
 	healthcheckService := serviceHealthcheck.New(sqlDB)
 
-	NewServer := &Server{
+	server := &Server{
 		config:              cfg,
 		WeatherService:      weatherService,
 		SubscriptionService: subscriptionService,
 		HealthCheckService:  healthcheckService,
 	}
 
-	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", NewServer.config.Port),
-		Handler:      NewServer.RegisterRoutes(),
+	server.httpServer = &http.Server{
+		Addr:         fmt.Sprintf(":%d", server.config.Port),
+		Handler:      server.RegisterRoutes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
 	return server
+}
+
+func (s *Server) ListenAndServe() error {
+	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }

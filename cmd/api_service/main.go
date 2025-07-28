@@ -10,6 +10,7 @@ import (
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/config"
+	"weatherApi/internal/scheduler"
 
 	"weatherApi/internal/server"
 )
@@ -25,13 +26,26 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ for publisher: %v", err)
 	}
 
-	server := server.NewServer(cfg, publisher)
+	httpServer := server.NewServer(cfg, publisher)
+
+	schedulerService, err := scheduler.NewService(
+		httpServer.SubscriptionService.SubscriptionRepo,
+		publisher,
+		httpServer.WeatherService,
+		ctx,
+	)
+	if err != nil {
+		log.Fatalf("failed to init scheduler: %v", err)
+	}
+	if err := schedulerService.Start(ctx); err != nil {
+		log.Fatalf("failed to start scheduler: %v", err)
+	}
 
 	done := make(chan bool, 1)
 
-	go gracefulShutdown(ctx, server, done, publisher)
+	go gracefulShutdown(ctx, httpServer, schedulerService, done, publisher)
 
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("HTTP server error: %v", err)
 	}
 
@@ -39,15 +53,18 @@ func main() {
 	log.Println("Graceful shutdown complete.")
 }
 
-func gracefulShutdown(ctx context.Context, apiServer *http.Server, done chan bool, publishers ...broker.EventPublisher) {
+func gracefulShutdown(ctx context.Context, httpServer *server.Server, schedulerService *scheduler.Service, done chan bool, publishers ...broker.EventPublisher) {
 	<-ctx.Done()
 
 	log.Println("shutting down gracefully, press Ctrl+C again to force")
-
 	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := apiServer.Shutdown(ctxTimeout); err != nil {
+	if err := schedulerService.Stop(ctxTimeout); err != nil {
+		log.Printf("Scheduler forced to shutdown with error: %v", err)
+	}
+
+	if err := httpServer.Shutdown(ctxTimeout); err != nil {
 		log.Printf("Server forced to shutdown with error: %v", err)
 	}
 

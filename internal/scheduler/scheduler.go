@@ -1,22 +1,18 @@
 package scheduler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/common/constants"
-	"weatherApi/internal/common/utils"
-	"weatherApi/internal/config"
 	"weatherApi/internal/dto"
 	"weatherApi/internal/repository/subscription"
+	serviceWeather "weatherApi/internal/service/weather"
 
 	"github.com/go-co-op/gocron/v2"
 )
@@ -27,13 +23,15 @@ type Service struct {
 	subscriptionRepo subscription.SubscriptionRepositoryInterface
 	publisher        broker.EventPublisher
 	scheduler        gocron.Scheduler
-	cfg              *config.SchedulerConfig
+	weatherService   *serviceWeather.Service
+	ctx              context.Context
 }
 
 func NewService(
 	subscriptionRepo subscription.SubscriptionRepositoryInterface,
 	publisher broker.EventPublisher,
-	cfg *config.SchedulerConfig,
+	weatherService *serviceWeather.Service,
+	ctx context.Context,
 ) (*Service, error) {
 	sched, err := gocron.NewScheduler()
 	if err != nil {
@@ -44,7 +42,8 @@ func NewService(
 		subscriptionRepo: subscriptionRepo,
 		publisher:        publisher,
 		scheduler:        sched,
-		cfg:              cfg,
+		weatherService:   weatherService,
+		ctx:              ctx,
 	}, nil
 }
 
@@ -85,6 +84,13 @@ func (s *Service) Stop(ctx context.Context) error {
 }
 
 func (s *Service) SendNotification(ctx context.Context, frequency constants.Frequency) error {
+	now := time.Now()
+
+	if frequency == constants.FrequencyHourly && now.Hour() == 9 {
+		log.Println("Hourly job skipped, cause of dayly job!")
+		return nil
+	}
+
 	log.Printf("Sending notifications for %s frequency...\n", frequency)
 
 	subs, err := s.subscriptionRepo.FindAllSubscriptionsByFrequency(ctx, frequency)
@@ -110,9 +116,9 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
-			weather, err := s.fetchWeatherWithRetry(ctx, city)
+			weather, err := s.weatherService.GetWeather(ctx, city)
 			if err != nil {
-				log.Printf("failed to fetch weather for city=%s: %v", city, err)
+				s.HandleError(fmt.Sprintf("failed to fetch weather for city=%s: %v", city, err))
 				return
 			}
 
@@ -123,17 +129,17 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 
 			task := dto.WeatherSubData{
 				Users:   users,
-				Weather: weather,
+				Weather: *weather,
 			}
 
-			payload, err := json.Marshal(task)
-			if err != nil {
-				log.Printf("error marshaling event for %s: %v", city, err)
+			payload, marshalErr := json.Marshal(task)
+			if marshalErr != nil {
+				s.HandleError(fmt.Sprintf("error marshaling event for %s: %v", city, marshalErr))
 				return
 			}
 
 			if err := s.publisher.Publish(broker.SendSubscriptionWeatherData, payload); err != nil {
-				log.Printf("failed to publish notification for %s: %v", city, err)
+				s.HandleError(fmt.Sprintf("failed to publish notification for %s: %v", city, err))
 			}
 		}(ctx, city, subs)
 	}
@@ -142,55 +148,9 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 	return nil
 }
 
-func (s *Service) fetchWeather(ctx context.Context, city string) (dto.WeatherResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	var weatherResponse dto.WeatherResponse
-
-	payload, err := json.Marshal(map[string]string{
-		"city": city,
-	})
-	if err != nil {
-		return weatherResponse, fmt.Errorf("failed to marshal city: %w", err)
+func (s *Service) HandleError(msg string) {
+	log.Println(msg)
+	if err := s.publisher.Publish(broker.SendSubscriptionWeatherData.DLQ(), []byte(msg)); err != nil {
+		log.Printf("error sending event to DLQ %v", err)
 	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		s.cfg.APIServiceEndpoint,
-		bytes.NewBuffer(payload),
-	)
-	if err != nil {
-		return weatherResponse, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	response, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return weatherResponse, fmt.Errorf("request failed: %w", err)
-	}
-
-	defer func() {
-		if err := response.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
-		}
-	}()
-
-	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
-		return weatherResponse, fmt.Errorf("unexpected status %d: %s", response.StatusCode, string(body))
-	}
-
-	if err := json.NewDecoder(response.Body).Decode(&weatherResponse); err != nil {
-		return weatherResponse, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return weatherResponse, nil
-}
-
-func (s *Service) fetchWeatherWithRetry(ctx context.Context, city string) (dto.WeatherResponse, error) {
-	return utils.Retry[dto.WeatherResponse](3, 2*time.Second, func() (dto.WeatherResponse, error) {
-		return s.fetchWeather(ctx, city)
-	})
 }
