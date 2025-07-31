@@ -2,8 +2,8 @@ package utils
 
 import (
 	"errors"
-	"log"
 	"time"
+	"weatherApi/internal/logger"
 )
 
 // RetryFunc is the function signature for retryable operations.
@@ -21,8 +21,7 @@ func Retry[T any](maxAttempts int, delay time.Duration, fn RetryFunc[T]) (T, err
 		if lastErr == nil {
 			return result, nil
 		}
-
-		log.Printf("retry attempt %d failed: %v", attempt, lastErr)
+		logger.Log.Error().Msgf("retry attempt %d failed: %v", attempt, lastErr)
 
 		if attempt < maxAttempts {
 			time.Sleep(delay)

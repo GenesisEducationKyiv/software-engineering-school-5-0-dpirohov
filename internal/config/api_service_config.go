@@ -1,9 +1,9 @@
 package config
 
 import (
-	"log"
 	"path/filepath"
 	"time"
+	"weatherApi/internal/logger"
 
 	"github.com/joho/godotenv"
 )
@@ -38,7 +38,7 @@ func NewApiServiceConfig() *ApiServiceConfig {
 	rootDir := getRootDir()
 	err := godotenv.Load(filepath.Join(rootDir, ".env.api_service"))
 	if err != nil {
-		log.Printf("Failed to load .env file! Err: %v", err)
+		logger.Log.Error().Err(err).Msg("Failed to load .env file!")
 	}
 	return &ApiServiceConfig{
 		Host:                   mustGet[string]("HOST"),

@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
+	"weatherApi/internal/logger"
 
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -37,7 +37,7 @@ func (s *service) Health() map[string]string {
 	if err != nil {
 		stats["status"] = "down"
 		stats["error"] = fmt.Sprintf("db down: %v", err)
-		log.Printf("db down: %v", err)
+		logger.Log.Error().Err(err).Msg("Database down!")
 		return stats
 	}
 
@@ -74,6 +74,6 @@ func (s *service) Health() map[string]string {
 }
 
 func (s *service) Close() error {
-	log.Printf("Disconnected from database")
+	logger.Log.Info().Msg("Disconnected from database")
 	return s.sqlDB.Close()
 }

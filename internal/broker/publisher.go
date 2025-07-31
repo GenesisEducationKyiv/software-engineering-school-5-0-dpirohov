@@ -2,16 +2,12 @@ package broker
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
-)
+	"weatherApi/internal/logger"
 
-const (
-	hdrRetries       = "x-retries"
-	hdrOriginalTopic = "x-original-topic"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type PublishOption func(*amqp.Publishing)
@@ -79,15 +75,15 @@ func (r *RabbitMQPublisher) Publish(topic Topic, payload []byte, opts ...Publish
 
 func (r *RabbitMQPublisher) maintainConnection() {
 	for err := range r.closeNotify {
-		log.Printf("RabbitMQ connection closed: %v", err)
+		logger.Log.Warn().Err(err).Msg("RabbitMQ connection closed")
 		for {
 			time.Sleep(time.Second * 5)
-			log.Println("Attempting to connect to RabbitMQ...")
+			logger.Log.Info().Msg("Attempting to connect to RabbitMQ...")
 			if err := r.connect(); err == nil {
-				log.Println("RabbitMQ reconnected successfully.")
+				logger.Log.Info().Msg("RabbitMQ reconnected successfully.")
 				break
 			}
-			log.Printf("Reconnect failed: %v", err)
+			logger.Log.Error().Err(err).Msg("RabbitMQ: reconnect failed")
 		}
 	}
 }
@@ -100,13 +96,13 @@ func (r *RabbitMQPublisher) Close() error {
 
 	if r.pubCh != nil {
 		if err := r.pubCh.Close(); err != nil {
-			log.Printf("Failed to close RabbitMQ channel: %v", err)
+			logger.Log.Error().Err(err).Msg("RabbitMQ: failed to close RabbitMQ channel")
 			firstErr = err
 		}
 	}
 	if r.conn != nil {
 		if err := r.conn.Close(); err != nil {
-			log.Printf("Failed to close RabbitMQ connection: %v", err)
+			logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ connection")
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -117,13 +113,13 @@ func (r *RabbitMQPublisher) Close() error {
 
 func closeConnection(conn *amqp.Connection) {
 	if err := conn.Close(); err != nil {
-		log.Printf("Failed to close RabbitMQ connection: %v", err)
+		logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ connection")
 	}
 }
 
 func closeChannel(ch *amqp.Channel) {
 	if err := ch.Close(); err != nil {
-		log.Printf("Failed to close RabbitMQ channel: %v", err)
+		logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ channel")
 	}
 }
 
