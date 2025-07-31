@@ -22,7 +22,8 @@ jobs:
 
       - name: Load config files
         run: |
-          echo "${{ secrets.SVC_ENV_CONFIG }}" > ${{ github.workspace }}/.env
+          echo "${{ secrets.API_SERVICE_CONFIG }}" > ${{ github.workspace }}/.env.api_service
+          echo "${{ secrets.NOTIFICATION_SERVICE_CONFIG }}" > ${{ github.workspace }}/.env.notification_service
           echo "${{ secrets.E2E_CONFIG }}" > frontend/tests/.env
 
       - name: Start Docker Compose services

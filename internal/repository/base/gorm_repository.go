@@ -17,9 +17,15 @@ func NewRepository[T any](db *gorm.DB) *BaseRepository[T] {
 	return &BaseRepository[T]{DB: db}
 }
 
-func (r *BaseRepository[T]) FindAll(ctx context.Context) ([]T, error) {
+func (r *BaseRepository[T]) FindAll(ctx context.Context, query any, args ...any) ([]T, error) {
 	var entities []T
-	result := r.DB.WithContext(ctx).Find(&entities)
+
+	db := r.DB.WithContext(ctx)
+	if query != nil {
+		db = db.Where(query, args...)
+	}
+
+	result := db.Find(&entities)
 	return entities, result.Error
 }
 
