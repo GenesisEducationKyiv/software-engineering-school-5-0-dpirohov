@@ -8,19 +8,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type SubscriptionRepositoryInterface interface {
-	FindOneOrNone(ctx context.Context, query any, args ...any) (*SubscriptionModel, error)
-	FindOneOrCreate(
-		ctx context.Context,
-		conditions map[string]any,
-		entity *SubscriptionModel,
-	) (*SubscriptionModel, error)
-	CreateOne(ctx context.Context, entity *SubscriptionModel) error
-	Update(ctx context.Context, entity *SubscriptionModel) error
-	Delete(ctx context.Context, entity *SubscriptionModel) error
-	FindAllSubscriptionsByFrequency(ctx context.Context, frequency constants.Frequency) ([]SubscriptionModel, error)
-}
-
 type SubscriptionRepository struct {
 	*base.BaseRepository[SubscriptionModel]
 }

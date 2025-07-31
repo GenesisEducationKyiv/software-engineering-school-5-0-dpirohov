@@ -19,8 +19,12 @@ import (
 
 const maxConcurrentJobs = 5
 
+type SubscriptionRepositoryInterface interface {
+	FindAllSubscriptionsByFrequency(ctx context.Context, frequency constants.Frequency) ([]subscription.SubscriptionModel, error)
+}
+
 type Service struct {
-	subscriptionRepo subscription.SubscriptionRepositoryInterface
+	subscriptionRepo SubscriptionRepositoryInterface
 	publisher        broker.EventPublisher
 	scheduler        gocron.Scheduler
 	weatherService   *serviceWeather.Service
@@ -28,7 +32,7 @@ type Service struct {
 }
 
 func NewService(
-	subscriptionRepo subscription.SubscriptionRepositoryInterface,
+	subscriptionRepo SubscriptionRepositoryInterface,
 	publisher broker.EventPublisher,
 	weatherService *serviceWeather.Service,
 	ctx context.Context,
@@ -62,7 +66,7 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	_, err = s.scheduler.NewJob(
-		gocron.CronJob("0 9 * * *", false),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(9, 0, 0))),
 		gocron.NewTask(func() {
 			log.Println("Daily job started")
 			if err := s.SendNotification(ctx, constants.FrequencyDaily); err != nil {

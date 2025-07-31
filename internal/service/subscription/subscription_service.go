@@ -19,15 +19,28 @@ import (
 	"github.com/google/uuid"
 )
 
+type RepositoryInterface interface {
+	FindOneOrNone(ctx context.Context, query any, args ...any) (*subscription.SubscriptionModel, error)
+	FindOneOrCreate(
+		ctx context.Context,
+		conditions map[string]any,
+		entity *subscription.SubscriptionModel,
+	) (*subscription.SubscriptionModel, error)
+	CreateOne(ctx context.Context, entity *subscription.SubscriptionModel) error
+	Update(ctx context.Context, entity *subscription.SubscriptionModel) error
+	Delete(ctx context.Context, entity *subscription.SubscriptionModel) error
+	FindAllSubscriptionsByFrequency(ctx context.Context, frequency constants.Frequency) ([]subscription.SubscriptionModel, error)
+}
+
 type SubscriptionService struct {
-	SubscriptionRepo subscription.SubscriptionRepositoryInterface
+	SubscriptionRepo RepositoryInterface
 	UserRepo         user.UserRepositoryInterface
 	publisher        broker.EventPublisher
 	tokenLifeMinutes int
 }
 
 func NewSubscriptionService(
-	subscriptionRepo subscription.SubscriptionRepositoryInterface,
+	subscriptionRepo RepositoryInterface,
 	userRepo user.UserRepositoryInterface,
 	publisher broker.EventPublisher,
 	tokenLifeMinutes int,
