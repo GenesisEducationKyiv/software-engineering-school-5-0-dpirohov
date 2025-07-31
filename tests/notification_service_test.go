@@ -30,7 +30,7 @@ func TestStartConfirmationWorker(t *testing.T) {
 	}
 	data, _ := json.Marshal(task)
 
-	err = mockSubscriber.SimulateMessage(broker.SubscriptionConfirmationTasks, data)
+	err = mockSubscriber.SimulateMessage(ctx, broker.SubscriptionConfirmationTasks, data)
 	assert.NoError(t, err)
 	assert.Len(t, mockSMTP.SentConfirmations, 1)
 	assert.Equal(t, task.Email, mockSMTP.SentConfirmations[0].Email)
@@ -63,7 +63,7 @@ func TestStartSubscriptionWorker(t *testing.T) {
 	}
 	data, _ := json.Marshal(task)
 
-	err = mockSubscriber.SimulateMessage(broker.SendSubscriptionWeatherData, data)
+	err = mockSubscriber.SimulateMessage(ctx, broker.SendSubscriptionWeatherData, data)
 	assert.NoError(t, err)
 	assert.Len(t, mockSMTP.SentWeatherData, 2)
 	assert.Equal(t, task.Users[0], mockSMTP.SentUserData[1])

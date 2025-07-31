@@ -3,8 +3,8 @@ package weather
 import (
 	"context"
 	"errors"
-	"log"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/repository/weather"
 
 	appErrors "weatherApi/internal/common/errors"
@@ -32,10 +32,12 @@ func (service *Service) GetWeather(
 	ctx context.Context,
 	city string,
 ) (*dto.WeatherResponse, *appErrors.AppError) {
+	log := logger.FromContext(ctx)
+
 	resp, err := service.cacheRepo.Get(ctx, city)
 	if err != nil && !errors.Is(err, weather.ErrCacheIsEmpty) {
-		log.Printf("Redis error: %v, caching is skipped!", err)
-		return service.provider.GetWeather(city)
+		log.Error().Err(err).Msg("Redis error, caching is skipped!")
+		return service.provider.GetWeather(ctx, city)
 	}
 	if resp != nil {
 		return resp, nil
@@ -43,7 +45,7 @@ func (service *Service) GetWeather(
 
 	locked, err := service.cacheRepo.AcquireLock(ctx, city)
 	if err != nil {
-		log.Printf("Failed to acquire lock: %v", err)
+		log.Error().Err(err).Msg("Redis failed to acquire lock")
 	}
 	if !locked {
 		response, err := service.cacheRepo.WaitForUnlock(ctx, city)
@@ -57,12 +59,12 @@ func (service *Service) GetWeather(
 		defer func(cacheRepo weather.CacheRepoInterface, ctx context.Context, city string) {
 			err := cacheRepo.ReleaseLock(ctx, city)
 			if err != nil {
-				log.Printf("Failed to release redis lock: %v", err)
+				log.Error().Err(err).Msg("Failed to release lock")
 			}
 		}(service.cacheRepo, ctx, city)
 	}
 
-	result, appErr := service.provider.GetWeather(city)
+	result, appErr := service.provider.GetWeather(ctx, city)
 	if appErr != nil {
 		return nil, appErr
 	}

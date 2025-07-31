@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"time"
 	"weatherApi/internal/broker"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/repository/base"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 
 	"weatherApi/internal/common/constants"
 	commonErrors "weatherApi/internal/common/errors"
@@ -41,6 +43,9 @@ func NewSubscriptionService(
 }
 
 func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
+	log := logger.FromContext(ctx)
+	traceID, _ := ctx.Value(constants.TraceID).(string)
+	log.Info().Msgf("Handling subscribe request for %s: %s", subscribeRequest.Email, subscribeRequest.City)
 	token, err := s.generateConfirmationToken()
 	if err != nil {
 		return serviceErrors.ErrInternalServerError
@@ -72,14 +77,17 @@ func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *d
 			}
 
 			if err := s.SubscriptionRepo.CreateOne(ctx, existing); err != nil {
+				log.Error().Err(err).Msg("Error creating new subscription")
 				return serviceErrors.ErrInternalServerError
 			}
 		} else {
+			log.Error().Err(err).Msg("Error perfoming subscription find request")
 			return serviceErrors.ErrInternalServerError
 		}
 	}
 
 	if existing.IsConfirmed {
+		log.Error().Msgf("%s already subscribed!", subscribeRequest.Email)
 		return serviceErrors.ErrAlreadySubscribed
 	}
 
@@ -88,6 +96,7 @@ func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *d
 	existing.Frequency = constants.Frequency(subscribeRequest.Frequency)
 
 	if err := s.SubscriptionRepo.Update(ctx, existing); err != nil {
+		log.Error().Err(err).Msg("Error perfoming subscription update request")
 		return serviceErrors.ErrInternalServerError
 	}
 
@@ -98,14 +107,18 @@ func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *d
 	}
 	payload, err := json.Marshal(task)
 	if err != nil {
-		log.Println("Error marshaling confirmation event")
+		log.Error().Err(err).Msg("Error marshaling confirmation event")
 		return serviceErrors.ErrInternalServerError
 	}
-	if err := s.publisher.Publish(broker.SubscriptionConfirmationTasks, payload); err != nil {
-		log.Println("Error publishing confirmation event")
+	if err := s.publisher.Publish(
+		broker.SubscriptionConfirmationTasks,
+		payload,
+		broker.WithHeaders(amqp.Table{constants.HdrTraceID: traceID}),
+	); err != nil {
+		logger.Log.Error().Err(err).Msgf("Error publishing confirmation event for %s", subscribeRequest.Email)
 		return serviceErrors.ErrInternalServerError
 	}
-	log.Printf("New task published! %s", task.Email)
+	log.Info().Msgf("Send confirmation letter task for %s is published!", subscribeRequest.Email)
 	return nil
 }
 

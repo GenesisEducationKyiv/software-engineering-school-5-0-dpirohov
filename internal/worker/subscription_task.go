@@ -3,10 +3,10 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"sync"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/provider"
 )
 
@@ -17,10 +17,12 @@ func StartSubscriptionWorker(
 	subscriber broker.EventSubscriber,
 	smtpClient provider.SMTPClientInterface,
 ) error {
-	err := subscriber.Subscribe(ctx, broker.SendSubscriptionWeatherData, func(data []byte) error {
+	err := subscriber.Subscribe(ctx, broker.SendSubscriptionWeatherData, func(ctx context.Context, data []byte) error {
+		log := logger.FromContext(ctx)
+
 		var task dto.WeatherSubData
 		if err := json.Unmarshal(data, &task); err != nil {
-			log.Println("Failed to decode task:", err)
+			log.Error().Err(err).Msg("Failed to decode task")
 			return err
 		}
 
@@ -34,10 +36,9 @@ func StartSubscriptionWorker(
 			go func() {
 				defer wg.Done()
 				defer func() { <-semaphore }()
-
-				log.Printf("Sending subscription message to user %s", user.Email)
+				log.Info().Msgf("Sending weather message to user %s", user.Email)
 				if err := smtpClient.SendSubscriptionWeatherData(&task.Weather, &user); err != nil {
-					log.Printf("Failed to send email to %s: %v", user.Email, err)
+					log.Error().Err(err).Msgf("Failed to send weather email to %s", user.Email)
 				}
 			}()
 		}

@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/config"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/metrics"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/weather"
@@ -24,7 +24,7 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 type Server struct {
@@ -38,15 +38,15 @@ type Server struct {
 func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Error),
+		Logger: gormLogger.Default.LogMode(gormLogger.Silent),
 	})
 	if err != nil {
-		log.Fatalf("failed to connect to DB: %v", err)
+		logger.Log.Fatal().Err(err).Msg("Failed to connect to DB")
 	}
 
 	sqlDB, err := gormDB.DB()
 	if err != nil {
-		log.Fatalf("Failed to get sql.DB: %v", err)
+		logger.Log.Fatal().Err(err).Msg("Failed to get sql.DB")
 	}
 
 	rdb := redis.NewClient(&redis.Options{

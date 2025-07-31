@@ -1,8 +1,8 @@
 package config
 
 import (
-	"log"
 	"path/filepath"
+	"weatherApi/internal/logger"
 
 	"github.com/joho/godotenv"
 )
@@ -26,7 +26,7 @@ func NewNotificationServiceConfig() *NotificationServiceConfig {
 	rootDir := getRootDir()
 	err := godotenv.Load(filepath.Join(rootDir, ".env.notification_service"))
 	if err != nil {
-		log.Printf("Failed to load .env file! Err: %v", err)
+		logger.Log.Warn().Msg("Failed to load .env file!")
 	}
 	return &NotificationServiceConfig{
 		Port:             mustGet[int]("PORT"),
