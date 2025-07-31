@@ -1,6 +1,13 @@
 package broker
 
 type MockRabbitMQPublisher struct {
+	Calls []PublishCall
+}
+
+type PublishCall struct {
+	Topic   Topic
+	Payload []byte
+	Options []PublishOption
 }
 
 func NewMockRabbitMQPublisher() *MockRabbitMQPublisher {
@@ -8,6 +15,11 @@ func NewMockRabbitMQPublisher() *MockRabbitMQPublisher {
 }
 
 func (m *MockRabbitMQPublisher) Publish(topic Topic, payload []byte, opts ...PublishOption) error {
+	m.Calls = append(m.Calls, PublishCall{
+		Topic:   topic,
+		Payload: payload,
+		Options: opts,
+	})
 	return nil
 }
 
