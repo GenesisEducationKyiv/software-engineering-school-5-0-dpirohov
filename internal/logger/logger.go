@@ -3,7 +3,6 @@ package logger
 import (
 	"context"
 	"os"
-	"time"
 	"weatherApi/internal/common/constants"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -14,7 +13,7 @@ import (
 var Log zerolog.Logger
 
 func Init(serviceName string, level zerolog.Level) {
-	zerolog.TimeFieldFormat = time.RFC3339
+	zerolog.TimeFieldFormat = "2006-01-02T15:04:05.000Z07:00"
 	Log = zerolog.New(os.Stdout).
 		With().
 		Timestamp().
@@ -30,7 +29,6 @@ func FromContext(ctx context.Context) *zerolog.Logger {
 	}
 	return &Log
 }
-
 
 func InjectTraceID(ctx context.Context, msg amqp.Delivery) context.Context {
 	if traceID, ok := msg.Headers[constants.HdrTraceID].(string); ok {
