@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 	"weatherApi/internal/broker"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/repository/base"
 
 	"weatherApi/internal/repository/subscription"
@@ -50,9 +51,10 @@ func TestSubscribeSuccess(t *testing.T) {
 	}
 
 	publisher := broker.NewMockRabbitMQPublisher()
+	log := logger.NewNoOpLogger()
 
-	service := subscriptionService.NewSubscriptionService(subRepo, userRepo, publisher, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	service := subscriptionService.NewSubscriptionService(log, subRepo, userRepo, publisher, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	body, _ := json.Marshal(gin.H{
@@ -75,8 +77,9 @@ func TestSubscribeSuccess(t *testing.T) {
 }
 
 func TestSubscribeInvalidInput(t *testing.T) {
-	service := subscriptionService.NewSubscriptionService(nil, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, nil, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	body, _ := json.Marshal(gin.H{
@@ -107,8 +110,9 @@ func TestConfirmSubscriptionSuccess(t *testing.T) {
 			return nil
 		},
 	}
-	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, subRepo, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -128,8 +132,9 @@ func TestConfirmSubscriptionInvalidToken(t *testing.T) {
 			return nil, base.ErrNotFound
 		},
 	}
-	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, subRepo, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -155,8 +160,9 @@ func TestTokenExpired(t *testing.T) {
 			return nil
 		},
 	}
-	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, subRepo, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -181,8 +187,9 @@ func TestUnsubscribeSuccess(t *testing.T) {
 			return nil
 		},
 	}
-	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, subRepo, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -201,8 +208,9 @@ func TestUnsubscribeSubscriptionTokenNotFound(t *testing.T) {
 			return nil, base.ErrNotFound
 		},
 	}
-	service := subscriptionService.NewSubscriptionService(subRepo, nil, nil, 60)
-	handler := routes.NewSubscriptionHandler(service)
+	log := logger.NewNoOpLogger()
+	service := subscriptionService.NewSubscriptionService(log, subRepo, nil, nil, 60)
+	handler := routes.NewSubscriptionHandler(log, service)
 	router := setupTestRouter(handler)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

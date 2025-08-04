@@ -14,25 +14,26 @@ import (
 )
 
 type Service struct {
+	log       *logger.Logger
 	provider  provider.WeatherProviderInterface
 	cacheRepo weather.CacheRepoInterface
 }
 
-func NewWeatherService(cacheRepo weather.CacheRepoInterface, providers ...provider.WeatherProviderInterface) *Service {
+func NewWeatherService(log *logger.Logger, cacheRepo weather.CacheRepoInterface, providers ...provider.WeatherProviderInterface) *Service {
 	if len(providers) == 0 {
 		panic("At least one provider required!")
 	}
 	for i := 0; i < len(providers)-1; i++ {
 		providers[i].SetNext(providers[i+1])
 	}
-	return &Service{provider: providers[0], cacheRepo: cacheRepo}
+	return &Service{log: log, provider: providers[0], cacheRepo: cacheRepo}
 }
 
 func (service *Service) GetWeather(
 	ctx context.Context,
 	city string,
 ) (*dto.WeatherResponse, *appErrors.AppError) {
-	log := logger.FromContext(ctx)
+	log := service.log.FromContext(ctx)
 
 	resp, err := service.cacheRepo.Get(ctx, city)
 	if err != nil && !errors.Is(err, weather.ErrCacheIsEmpty) {

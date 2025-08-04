@@ -11,19 +11,22 @@ import (
 )
 
 type SubscriptionHandler struct {
+	log     *logger.Logger
 	service *subscription.SubscriptionService
 }
 
 func NewSubscriptionHandler(
+	log *logger.Logger,
 	subscriptionService *subscription.SubscriptionService,
 ) *SubscriptionHandler {
 	return &SubscriptionHandler{
+		log:     log,
 		service: subscriptionService,
 	}
 }
 
 func (h *SubscriptionHandler) Subscribe(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	log := h.log.FromContext(c.Request.Context())
 	var req dto.SubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
@@ -39,7 +42,7 @@ func (h *SubscriptionHandler) Subscribe(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) ConfirmSubscription(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	log := h.log.FromContext(c.Request.Context())
 	token := c.Param("token")
 	log.Info().Msgf("Handling confirm subscription for token %s", token)
 
@@ -52,7 +55,7 @@ func (h *SubscriptionHandler) ConfirmSubscription(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) Unsubscribe(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	log := h.log.FromContext(c.Request.Context())
 	token := c.Param("token")
 	log.Info().Msgf("Handling unsibscribe from subscription for token %s", token)
 	if err := h.service.Unsubscribe(c.Request.Context(), token); err != nil {

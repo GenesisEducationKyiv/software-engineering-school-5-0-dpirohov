@@ -12,7 +12,7 @@ type RetryFunc[T any] func() (T, error)
 // Retry retries a function up to maxAttempts times with delay between attempts.
 // If the function succeeds (err == nil), it returns the result.
 // If all attempts fail, the last error is returned.
-func Retry[T any](maxAttempts int, delay time.Duration, fn RetryFunc[T]) (T, error) {
+func Retry[T any](log *logger.Logger, maxAttempts int, delay time.Duration, fn RetryFunc[T]) (T, error) {
 	var lastErr error
 	var result T
 
@@ -21,7 +21,7 @@ func Retry[T any](maxAttempts int, delay time.Duration, fn RetryFunc[T]) (T, err
 		if lastErr == nil {
 			return result, nil
 		}
-		logger.Log.Error().Msgf("retry attempt %d failed: %v", attempt, lastErr)
+		log.Base().Error().Msgf("retry attempt %d failed: %v", attempt, lastErr)
 
 		if attempt < maxAttempts {
 			time.Sleep(delay)

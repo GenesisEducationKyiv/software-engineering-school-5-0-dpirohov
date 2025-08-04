@@ -17,11 +17,13 @@ type HealthCheckService interface {
 }
 
 type service struct {
+	log   *logger.Logger
 	sqlDB *sql.DB
 }
 
-func New(db *sql.DB) HealthCheckService {
+func New(log *logger.Logger, db *sql.DB) HealthCheckService {
 	return &service{
+		log:   log,
 		sqlDB: db,
 	}
 }
@@ -37,7 +39,7 @@ func (s *service) Health() map[string]string {
 	if err != nil {
 		stats["status"] = "down"
 		stats["error"] = fmt.Sprintf("db down: %v", err)
-		logger.Log.Error().Err(err).Msg("Database down!")
+		s.log.Base().Error().Err(err).Msg("Database down!")
 		return stats
 	}
 
@@ -74,6 +76,6 @@ func (s *service) Health() map[string]string {
 }
 
 func (s *service) Close() error {
-	logger.Log.Info().Msg("Disconnected from database")
+	s.log.Base().Info().Msg("Disconnected from database")
 	return s.sqlDB.Close()
 }

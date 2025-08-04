@@ -10,12 +10,13 @@ import (
 )
 
 func StartConfirmationWorker(
+	log *logger.Logger,
 	ctx context.Context,
 	subscriber broker.EventSubscriber,
 	smtpClient provider.SMTPClientInterface,
 ) error {
 	err := subscriber.Subscribe(ctx, broker.SubscriptionConfirmationTasks, func(ctx context.Context, data []byte) error {
-		log := logger.FromContext(ctx)
+		log := log.FromContext(ctx)
 		var task dto.ConfirmationEmailTask
 		if err := json.Unmarshal(data, &task); err != nil {
 			log.Error().Err(err).Msg("Failed to decode task")

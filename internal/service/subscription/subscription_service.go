@@ -35,6 +35,7 @@ type RepositoryInterface interface {
 }
 
 type SubscriptionService struct {
+	log              *logger.Logger
 	SubscriptionRepo RepositoryInterface
 	UserRepo         user.UserRepositoryInterface
 	publisher        broker.EventPublisher
@@ -42,12 +43,14 @@ type SubscriptionService struct {
 }
 
 func NewSubscriptionService(
+	log *logger.Logger,
 	subscriptionRepo RepositoryInterface,
 	userRepo user.UserRepositoryInterface,
 	publisher broker.EventPublisher,
 	tokenLifeMinutes int,
 ) *SubscriptionService {
 	return &SubscriptionService{
+		log:              log,
 		SubscriptionRepo: subscriptionRepo,
 		UserRepo:         userRepo,
 		publisher:        publisher,
@@ -56,7 +59,7 @@ func NewSubscriptionService(
 }
 
 func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *dto.SubscribeRequest) *commonErrors.AppError {
-	log := logger.FromContext(ctx)
+	log := s.log.FromContext(ctx)
 	traceID, _ := ctx.Value(constants.TraceID).(string)
 	log.Info().Msgf("Handling subscribe request for %s: %s", subscribeRequest.Email, subscribeRequest.City)
 	token, err := s.generateConfirmationToken()
@@ -128,7 +131,7 @@ func (s *SubscriptionService) Subscribe(ctx context.Context, subscribeRequest *d
 		payload,
 		broker.WithHeaders(amqp.Table{constants.HdrTraceID: traceID}),
 	); err != nil {
-		logger.Log.Error().Err(err).Msgf("Error publishing confirmation event for %s", subscribeRequest.Email)
+		log.Error().Err(err).Msgf("Error publishing confirmation event for %s", subscribeRequest.Email)
 		return serviceErrors.ErrInternalServerError
 	}
 	log.Info().Msgf("Send confirmation letter task for %s is published!", subscribeRequest.Email)

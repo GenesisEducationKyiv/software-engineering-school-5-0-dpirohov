@@ -13,12 +13,13 @@ import (
 const maxConcurrentJobs = 5
 
 func StartSubscriptionWorker(
+	log *logger.Logger,
 	ctx context.Context,
 	subscriber broker.EventSubscriber,
 	smtpClient provider.SMTPClientInterface,
 ) error {
 	err := subscriber.Subscribe(ctx, broker.SendSubscriptionWeatherData, func(ctx context.Context, data []byte) error {
-		log := logger.FromContext(ctx)
+		log := log.FromContext(ctx)
 
 		var task dto.WeatherSubData
 		if err := json.Unmarshal(data, &task); err != nil {

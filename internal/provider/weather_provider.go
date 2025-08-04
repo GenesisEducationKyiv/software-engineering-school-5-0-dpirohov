@@ -4,7 +4,8 @@ import (
 	"context"
 	"weatherApi/internal/common/errors"
 	"weatherApi/internal/dto"
-	"weatherApi/internal/logger"
+
+	"github.com/rs/zerolog"
 
 	serviceErrors "weatherApi/internal/service/weather/errors"
 )
@@ -15,8 +16,7 @@ type WeatherProviderInterface interface {
 	Name() string
 }
 
-func TryNext(ctx context.Context, current WeatherProviderInterface, next WeatherProviderInterface, city string, err error) (*dto.WeatherResponse, *errors.AppError) {
-	log := logger.FromContext(ctx)
+func TryNext(log *zerolog.Logger, ctx context.Context, current WeatherProviderInterface, next WeatherProviderInterface, city string, err error) (*dto.WeatherResponse, *errors.AppError) {
 	log.Error().Err(err).Msgf("%s: Provider failed", current.Name())
 
 	if next != nil {

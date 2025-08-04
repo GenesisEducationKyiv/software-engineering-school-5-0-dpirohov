@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"weatherApi/internal/appctx"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/common/constants"
 	"weatherApi/internal/dto"
@@ -14,8 +15,9 @@ import (
 	"weatherApi/internal/repository/subscription"
 	serviceWeather "weatherApi/internal/service/weather"
 
+	amqp "github.com/rabbitmq/amqp091-go"
+
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 
 	"github.com/go-co-op/gocron/v2"
 )
@@ -27,6 +29,7 @@ type SubscriptionRepositoryInterface interface {
 }
 
 type Service struct {
+	log              *logger.Logger
 	subscriptionRepo SubscriptionRepositoryInterface
 	publisher        broker.EventPublisher
 	scheduler        gocron.Scheduler
@@ -35,6 +38,7 @@ type Service struct {
 }
 
 func NewService(
+	log *logger.Logger,
 	subscriptionRepo SubscriptionRepositoryInterface,
 	publisher broker.EventPublisher,
 	weatherService *serviceWeather.Service,
@@ -46,6 +50,7 @@ func NewService(
 	}
 
 	return &Service{
+		log:              log,
 		subscriptionRepo: subscriptionRepo,
 		publisher:        publisher,
 		scheduler:        sched,
@@ -58,9 +63,8 @@ func (s *Service) Start() error {
 	_, err := s.scheduler.NewJob(
 		gocron.DurationJob(time.Hour),
 		gocron.NewTask(func() {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, constants.TraceID, uuid.NewString())
-			log := logger.FromContext(ctx)
+			ctx := appctx.SetTraceID(context.Background(), uuid.NewString())
+			log := s.log.FromContext(ctx)
 			log.Info().Msg("Hourly job started")
 			if err := s.SendNotification(ctx, constants.FrequencyHourly); err != nil {
 				log.Error().Err(err).Msg("Error processing hourly notification")
@@ -74,9 +78,8 @@ func (s *Service) Start() error {
 	_, err = s.scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(9, 0, 0))),
 		gocron.NewTask(func() {
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, constants.TraceID, uuid.NewString())
-			log := logger.FromContext(ctx)
+			ctx := appctx.SetTraceID(context.Background(), uuid.NewString())
+			log := s.log.FromContext(ctx)
 			log.Info().Msg("Daily job started")
 			if err := s.SendNotification(ctx, constants.FrequencyDaily); err != nil {
 				log.Error().Err(err).Msg("Error processing daily notification")
@@ -92,13 +95,13 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) Stop() error {
-	logger.Log.Info().Msg("Shutting down scheduler...")
+	s.log.Base().Info().Msg("Shutting down scheduler...")
 	return s.scheduler.Shutdown()
 }
 
 func (s *Service) SendNotification(ctx context.Context, frequency constants.Frequency) error {
 	now := time.Now()
-	log := logger.FromContext(ctx)
+	log := s.log.FromContext(ctx)
 	if frequency == constants.FrequencyHourly && now.Hour() == 9 {
 		log.Info().Msg("Hourly job skipped, cause of dayly job!")
 		return nil
@@ -130,7 +133,7 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 
 			weather, err := s.weatherService.GetWeather(ctx, city)
 			if err != nil {
-				s.HandleError(log, fmt.Sprintf("failed to fetch weather for city=%s", city), err)
+				s.HandleError(fmt.Sprintf("failed to fetch weather for city=%s", city), err)
 				return
 			}
 
@@ -146,12 +149,12 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 
 			payload, marshalErr := json.Marshal(task)
 			if marshalErr != nil {
-				s.HandleError(log, fmt.Sprintf("error marshaling event for %s", city), marshalErr)
+				s.HandleError(fmt.Sprintf("error marshaling event for %s", city), marshalErr)
 				return
 			}
-
-			if err := s.publisher.Publish(broker.SendSubscriptionWeatherData, payload); err != nil {
-				s.HandleError(log, fmt.Sprintf("failed to publish notification for %s", city), err)
+			traceID := appctx.GetTraceID(ctx)
+			if err := s.publisher.Publish(broker.SendSubscriptionWeatherData, payload, broker.WithHeaders(amqp.Table{constants.HdrTraceID: traceID})); err != nil {
+				s.HandleError(fmt.Sprintf("failed to publish notification for %s", city), err)
 			}
 		}(ctx, city, subs)
 	}
@@ -160,9 +163,9 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 	return nil
 }
 
-func (s *Service) HandleError(log *zerolog.Logger, msg string, err error) {
-	log.Error().Err(err).Msg(msg)
+func (s *Service) HandleError(msg string, err error) {
+	s.log.Base().Error().Err(err).Msg(msg)
 	if err := s.publisher.Publish(broker.SendSubscriptionWeatherData.DLQ(), []byte(msg)); err != nil {
-		log.Printf("error sending event to DLQ %v", err)
+		s.log.Base().Error().Err(err).Msg("error sending event to DLQ")
 	}
 }

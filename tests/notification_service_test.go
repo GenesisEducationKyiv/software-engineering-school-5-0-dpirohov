@@ -7,6 +7,7 @@ import (
 	"weatherApi/internal/broker"
 	"weatherApi/internal/common/utils"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/worker"
 
@@ -19,8 +20,8 @@ func TestStartConfirmationWorker(t *testing.T) {
 
 	mockSubscriber := broker.NewMockEventSubscriber()
 	mockSMTP := &provider.MockSMTPClient{}
-
-	err := worker.StartConfirmationWorker(ctx, mockSubscriber, mockSMTP)
+	log := logger.NewNoOpLogger()
+	err := worker.StartConfirmationWorker(log, ctx, mockSubscriber, mockSMTP)
 	assert.NoError(t, err)
 
 	task := dto.ConfirmationEmailTask{
@@ -44,8 +45,9 @@ func TestStartSubscriptionWorker(t *testing.T) {
 
 	mockSubscriber := broker.NewMockEventSubscriber()
 	mockSMTP := &provider.MockSMTPClient{}
+	log := logger.NewNoOpLogger()
 
-	err := worker.StartSubscriptionWorker(ctx, mockSubscriber, mockSMTP)
+	err := worker.StartSubscriptionWorker(log, ctx, mockSubscriber, mockSMTP)
 	assert.NoError(t, err)
 
 	randomResponse := utils.RandomWeatherAPIResponse()

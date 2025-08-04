@@ -10,17 +10,19 @@ import (
 )
 
 type WeatherHandler struct {
+	log     *logger.Logger
 	service *weather.Service
 }
 
-func NewWeatherHandler(weatherService *weather.Service) *WeatherHandler {
+func NewWeatherHandler(log *logger.Logger, weatherService *weather.Service) *WeatherHandler {
 	return &WeatherHandler{
+		log:     log,
 		service: weatherService,
 	}
 }
 
 func (h *WeatherHandler) GetWeather(c *gin.Context) {
-	log := logger.FromContext(c.Request.Context())
+	log := h.log.FromContext(c.Request.Context())
 
 	city := c.Query("city")
 	log.Info().Msgf("Handling get weather for %s", city)

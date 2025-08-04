@@ -16,13 +16,15 @@ import (
 var _ WeatherProviderInterface = (*WeatherApiProvider)(nil)
 
 type WeatherApiProvider struct {
+	log    *logger.Logger
 	next   WeatherProviderInterface
 	apiKey string
 	url    string
 }
 
-func NewWeatherApiProvider(apikey, url string) *WeatherApiProvider {
+func NewWeatherApiProvider(log *logger.Logger, apikey, url string) *WeatherApiProvider {
 	return &WeatherApiProvider{
+		log:    log,
 		apiKey: apikey,
 		url:    url,
 	}
@@ -37,7 +39,7 @@ func (w *WeatherApiProvider) SetNext(next WeatherProviderInterface) {
 }
 
 func (w *WeatherApiProvider) Next(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
-	log := logger.FromContext(ctx)
+	log := w.log.FromContext(ctx)
 	if w.next != nil {
 		return w.next.GetWeather(ctx, city)
 	}
@@ -46,7 +48,7 @@ func (w *WeatherApiProvider) Next(ctx context.Context, city string) (*dto.Weathe
 }
 
 func (w *WeatherApiProvider) GetWeather(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
-	log := logger.FromContext(ctx)
+	log := w.log.FromContext(ctx)
 
 	var weatherResponse dto.WeatherAPIResponse
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -56,12 +58,12 @@ func (w *WeatherApiProvider) GetWeather(ctx context.Context, city string) (*dto.
 		nil,
 	)
 	if err != nil {
-		return TryNext(ctx, w, w.next, city, err)
+		return TryNext(log, ctx, w, w.next, city, err)
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return TryNext(ctx, w, w.next, city, err)
+		return TryNext(log, ctx, w, w.next, city, err)
 	}
 
 	defer func() {
@@ -72,13 +74,13 @@ func (w *WeatherApiProvider) GetWeather(ctx context.Context, city string) (*dto.
 
 	if badResponse := w.checkApiResponse(response); badResponse != nil {
 		if badResponse.Code == 500 {
-			return TryNext(ctx, w, w.next, city, fmt.Errorf("bad API response: %v", badResponse.Message))
+			return TryNext(log, ctx, w, w.next, city, fmt.Errorf("bad API response: %v", badResponse.Message))
 		}
 		return nil, badResponse
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&weatherResponse); err != nil {
-		return TryNext(ctx, w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
+		return TryNext(log, ctx, w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
 	}
 
 	return &dto.WeatherResponse{

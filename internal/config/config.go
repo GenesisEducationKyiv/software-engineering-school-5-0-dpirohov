@@ -5,29 +5,30 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-	"weatherApi/internal/logger"
+
+	"github.com/rs/zerolog"
 )
 
 type Config struct{}
 
-func mustGet[T any](key string) T {
+func mustGet[T any](log *zerolog.Logger, key string) T {
 	val := os.Getenv(key)
 	if val == "" {
-		logger.Log.Fatal().Msgf("Missing required environment variable: %s", key)
+		log.Fatal().Msgf("Missing required environment variable: %s", key)
 	}
-	return castEnvValue[T](val, key)
+	return castEnvValue[T](log, val, key)
 }
 
-func getWithDefault[T any](key string, defaultVal T) T {
+func getWithDefault[T any](log *zerolog.Logger, key string, defaultVal T) T {
 	val := os.Getenv(key)
 	if val == "" {
-		logger.Log.Warn().Msgf("Missing optional environment variable: %s, using default value: %v", key, defaultVal)
+		log.Warn().Msgf("Missing optional environment variable: %s, using default value: %v", key, defaultVal)
 		return defaultVal
 	}
-	return castEnvValue[T](val, key)
+	return castEnvValue[T](log, val, key)
 }
 
-func castEnvValue[T any](val string, key string) T {
+func castEnvValue[T any](log *zerolog.Logger, val string, key string) T {
 	var zero T
 
 	switch any(zero).(type) {
@@ -36,26 +37,26 @@ func castEnvValue[T any](val string, key string) T {
 	case int:
 		intVal, err := strconv.Atoi(val)
 		if err != nil {
-			logger.Log.Fatal().Err(err).Msgf("Invalid int value for %s", key)
+			log.Fatal().Err(err).Msgf("Invalid int value for %s", key)
 		}
 		return any(intVal).(T)
 	case time.Duration:
 		dur, err := time.ParseDuration(val)
 		if err != nil {
-			logger.Log.Fatal().Err(err).Msgf("Invalid duration value for %s", key)
+			log.Fatal().Err(err).Msgf("Invalid duration value for %s", key)
 		}
 		return any(dur).(T)
 	default:
-		logger.Log.Fatal().Msgf("unsupported type for env variable: %T", zero)
+		log.Fatal().Msgf("unsupported type for env variable: %T", zero)
 	}
 
 	return zero
 }
 
-func getRootDir() string {
+func getRootDir(log *zerolog.Logger) string {
 	currentDir, err := os.Getwd()
 	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Cannot get working directory")
+		log.Fatal().Err(err).Msg("Cannot get working directory")
 	}
 	if os.Getenv("ENV") != "DOCKER" {
 		return filepath.Join(currentDir, "../../")

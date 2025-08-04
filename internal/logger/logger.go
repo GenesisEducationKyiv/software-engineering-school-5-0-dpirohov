@@ -2,37 +2,46 @@ package logger
 
 import (
 	"context"
+	"io"
 	"os"
-	"weatherApi/internal/common/constants"
-
-	amqp "github.com/rabbitmq/amqp091-go"
+	"weatherApi/internal/appctx"
 
 	"github.com/rs/zerolog"
 )
 
-var Log zerolog.Logger
+type Logger struct {
+	base zerolog.Logger
+}
 
-func Init(serviceName string, level zerolog.Level) {
+func NewLogger(serviceName string, level zerolog.Level) *Logger {
+	return NewWithWriter(serviceName, level, os.Stdout)
+}
+
+func NewWithWriter(serviceName string, level zerolog.Level, writer io.Writer) *Logger {
 	zerolog.TimeFieldFormat = "2006-01-02T15:04:05.000Z07:00"
-	Log = zerolog.New(os.Stdout).
+
+	base := zerolog.New(writer).
 		With().
 		Timestamp().
 		Str("service", serviceName).
 		Logger().
 		Level(level)
+
+	return &Logger{base: base}
 }
 
-func FromContext(ctx context.Context) *zerolog.Logger {
-	if traceID, ok := ctx.Value(constants.TraceID).(string); ok {
-		l := Log.With().Str("trace_id", traceID).Logger()
-		return &l
-	}
-	return &Log
+// Test logger
+func NewNoOpLogger() *Logger {
+	return NewWithWriter("test-service", zerolog.InfoLevel, io.Discard)
 }
 
-func InjectTraceID(ctx context.Context, msg amqp.Delivery) context.Context {
-	if traceID, ok := msg.Headers[constants.HdrTraceID].(string); ok {
-		return context.WithValue(ctx, constants.TraceID, traceID)
-	}
-	return ctx
+func (l *Logger) Base() *zerolog.Logger {
+	return &l.base
+}
+
+// Add trace_id from context to logger
+func (l *Logger) FromContext(ctx context.Context) *zerolog.Logger {
+	traceID := appctx.GetTraceID(ctx)
+	loggerWithTraceID := l.base.With().Str("trace_id", traceID).Logger()
+	return &loggerWithTraceID
 }

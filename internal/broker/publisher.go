@@ -18,6 +18,7 @@ type EventPublisher interface {
 }
 
 type RabbitMQPublisher struct {
+	log         *logger.Logger
 	url         string
 	conn        *amqp.Connection
 	pubCh       *amqp.Channel
@@ -25,8 +26,8 @@ type RabbitMQPublisher struct {
 	mu          sync.Mutex
 }
 
-func NewRabbitMQPublisher(url string) (*RabbitMQPublisher, error) {
-	publisher := &RabbitMQPublisher{url: url}
+func NewRabbitMQPublisher(url string, log *logger.Logger) (*RabbitMQPublisher, error) {
+	publisher := &RabbitMQPublisher{url: url, log: log}
 	if err := publisher.connect(); err != nil {
 		return nil, err
 	}
@@ -42,7 +43,7 @@ func (r *RabbitMQPublisher) connect() error {
 
 	pubCh, err := conn.Channel()
 	if err != nil {
-		closeConnection(conn)
+		closeConnection(r.log, conn)
 		return fmt.Errorf("channel: %w", err)
 	}
 
@@ -75,15 +76,15 @@ func (r *RabbitMQPublisher) Publish(topic Topic, payload []byte, opts ...Publish
 
 func (r *RabbitMQPublisher) maintainConnection() {
 	for err := range r.closeNotify {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ connection closed")
+		r.log.Base().Warn().Err(err).Msg("RabbitMQ connection closed")
 		for {
 			time.Sleep(time.Second * 5)
-			logger.Log.Info().Msg("Attempting to connect to RabbitMQ...")
+			r.log.Base().Info().Msg("Attempting to connect to RabbitMQ...")
 			if err := r.connect(); err == nil {
-				logger.Log.Info().Msg("RabbitMQ reconnected successfully.")
+				r.log.Base().Info().Msg("RabbitMQ reconnected successfully.")
 				break
 			}
-			logger.Log.Error().Err(err).Msg("RabbitMQ: reconnect failed")
+			r.log.Base().Error().Err(err).Msg("RabbitMQ: reconnect failed")
 		}
 	}
 }
@@ -96,13 +97,13 @@ func (r *RabbitMQPublisher) Close() error {
 
 	if r.pubCh != nil {
 		if err := r.pubCh.Close(); err != nil {
-			logger.Log.Error().Err(err).Msg("RabbitMQ: failed to close RabbitMQ channel")
+			r.log.Base().Error().Err(err).Msg("RabbitMQ: failed to close RabbitMQ channel")
 			firstErr = err
 		}
 	}
 	if r.conn != nil {
 		if err := r.conn.Close(); err != nil {
-			logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ connection")
+			r.log.Base().Error().Err(err).Msg("Failed to close RabbitMQ connection")
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -111,15 +112,15 @@ func (r *RabbitMQPublisher) Close() error {
 	return firstErr
 }
 
-func closeConnection(conn *amqp.Connection) {
+func closeConnection(log *logger.Logger, conn *amqp.Connection) {
 	if err := conn.Close(); err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ connection")
+		log.Base().Error().Err(err).Msg("Failed to close RabbitMQ connection")
 	}
 }
 
-func closeChannel(ch *amqp.Channel) {
+func closeChannel(log *logger.Logger, ch *amqp.Channel) {
 	if err := ch.Close(); err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to close RabbitMQ channel")
+		log.Base().Error().Err(err).Msg("Failed to close RabbitMQ channel")
 	}
 }
 
