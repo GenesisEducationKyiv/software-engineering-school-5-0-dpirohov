@@ -1,0 +1,59 @@
+version: "2"
+formatters:
+    enable:
+        - goimports
+linters:
+    settings:
+        tagliatelle:
+            case:
+                rules:
+                    json: snake
+        revive:
+            rules:
+                - name: exported
+                  disabled: true
+    enable:
+        - asasalint
+        - bidichk
+        - bodyclose
+        - contextcheck
+        - durationcheck
+        - errcheck
+        - errname
+        - errorlint
+        - gomoddirectives
+        - gosec
+        - govet
+        - ineffassign
+        - misspell
+        - nakedret
+        - nilerr
+        - nilnil
+        - noctx
+        - prealloc
+        - predeclared
+        - promlinter
+        - reassign
+        - revive
+        - cyclop
+        - rowserrcheck
+        - sqlclosecheck
+        - staticcheck
+        - tagliatelle
+        - testableexamples
+        - thelper
+        - tparallel
+        - unconvert
+        - unparam
+        - unused
+        - usestdlibvars
+        - wastedassign
+
+run:
+    tests: true
+    timeout: 5m
+    allow-parallel-runners: true
+
+issues:
+    max-issues-per-linter: 0
+    max-same-issues: 0
