@@ -19,7 +19,7 @@ type UserRepository struct {
 	*base.BaseRepository[UserModel]
 }
 
-func NewUserRepository(db *gorm.DB) UserRepositoryInterface {
+func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{
 		BaseRepository: base.NewRepository[UserModel](db),
 	}

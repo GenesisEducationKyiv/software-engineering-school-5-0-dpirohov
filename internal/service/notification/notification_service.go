@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/config"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/worker"
 )
 
 type Service struct {
+	Log        *logger.Logger
 	Config     *config.NotificationServiceConfig
 	SMTPClient provider.SMTPClientInterface
 	Publisher  broker.EventPublisher
@@ -37,22 +38,22 @@ func Run(ctx context.Context, service Service) error {
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
 	}
-
+	log := service.Log.Base()
 	go func() {
-		log.Printf("Starting health check server on :%d", service.Config.Port)
+		log.Info().Msgf("Starting health check server on :%d", service.Config.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Health server error: %v", err)
+			log.Fatal().Err(err).Msg("Health server error")
 		}
 	}()
 
 	go func() {
-		if err := worker.StartConfirmationWorker(ctx, service.Subscriber, service.SMTPClient); err != nil {
-			log.Fatalf("ConfirmationWorker error: %v", err)
+		if err := worker.StartConfirmationWorker(service.Log, ctx, service.Subscriber, service.SMTPClient); err != nil {
+			log.Fatal().Err(err).Msg("ConfirmationWorker error")
 		}
 	}()
 	go func() {
-		if err := worker.StartSubscriptionWorker(ctx, service.Subscriber, service.SMTPClient); err != nil {
-			log.Fatalf("SubscriptionWorker error: %v", err)
+		if err := worker.StartSubscriptionWorker(service.Log, ctx, service.Subscriber, service.SMTPClient); err != nil {
+			log.Fatal().Err(err).Msg("SubscriptionWorker error")
 		}
 	}()
 
@@ -65,7 +66,7 @@ func Run(ctx context.Context, service Service) error {
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Panicln("Failed to shutdown notification service")
+		log.Error().Err(err).Msg("Failed to shutdown notification service")
 		return err
 	}
 	return nil

@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/config"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/metrics"
 	"weatherApi/internal/provider"
 	"weatherApi/internal/repository/weather"
@@ -24,10 +24,11 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 type Server struct {
+	log                 *logger.Logger
 	config              *config.ApiServiceConfig
 	WeatherService      *serviceWeather.Service
 	SubscriptionService *serviceSubscription.SubscriptionService
@@ -35,18 +36,18 @@ type Server struct {
 	httpServer          *http.Server
 }
 
-func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *Server {
+func NewServer(log *logger.Logger, cfg *config.ApiServiceConfig, broker broker.EventPublisher) *Server {
 
 	gormDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Error),
+		Logger: gormLogger.Default.LogMode(gormLogger.Silent),
 	})
 	if err != nil {
-		log.Fatalf("failed to connect to DB: %v", err)
+		log.Base().Fatal().Err(err).Msg("Failed to connect to DB")
 	}
 
 	sqlDB, err := gormDB.DB()
 	if err != nil {
-		log.Fatalf("Failed to get sql.DB: %v", err)
+		log.Base().Fatal().Err(err).Msg("Failed to get sql.DB")
 	}
 
 	rdb := redis.NewClient(&redis.Options{
@@ -69,19 +70,22 @@ func NewServer(cfg *config.ApiServiceConfig, broker broker.EventPublisher) *Serv
 	})
 
 	weatherService := serviceWeather.NewWeatherService(
+		log,
 		cacheRepo,
-		provider.NewOpenWeatherApiProvider(cfg.OpenWeatherAPIkey, cfg.OpenWeatherAPIEndpoint),
-		provider.NewWeatherApiProvider(cfg.WeatherApiAPIkey, cfg.WeatherApiAPIEndpoint),
+		provider.NewOpenWeatherApiProvider(log, cfg.OpenWeatherAPIkey, cfg.OpenWeatherAPIEndpoint),
+		provider.NewWeatherApiProvider(log, cfg.WeatherApiAPIkey, cfg.WeatherApiAPIEndpoint),
 	)
 	subscriptionService := serviceSubscription.NewSubscriptionService(
+		log,
 		subscriptionRepo,
 		userRepo,
 		broker,
 		cfg.TokenLifetimeMinutes,
 	)
-	healthcheckService := serviceHealthcheck.New(sqlDB)
+	healthcheckService := serviceHealthcheck.New(log, sqlDB)
 
 	server := &Server{
+		log:                 log,
 		config:              cfg,
 		WeatherService:      weatherService,
 		SubscriptionService: subscriptionService,

@@ -1,8 +1,9 @@
 package config
 
 import (
-	"log"
 	"path/filepath"
+
+	"github.com/rs/zerolog"
 
 	"github.com/joho/godotenv"
 )
@@ -22,21 +23,21 @@ type NotificationServiceConfig struct {
 	RootDir string
 }
 
-func NewNotificationServiceConfig() *NotificationServiceConfig {
-	rootDir := getRootDir()
+func NewNotificationServiceConfig(log *zerolog.Logger) *NotificationServiceConfig {
+	rootDir := getRootDir(log)
 	err := godotenv.Load(filepath.Join(rootDir, ".env.notification_service"))
 	if err != nil {
-		log.Printf("Failed to load .env file! Err: %v", err)
+		log.Warn().Msg("Failed to load .env file!")
 	}
 	return &NotificationServiceConfig{
-		Port:             mustGet[int]("PORT"),
-		AppURL:           mustGet[string]("APP_URL"),
-		BrokerURL:        mustGet[string]("BROKER_URL"),
-		BrokerMaxRetries: getWithDefault[int]("RMQ_MAX_RETRIES", 3),
-		SmtpHost:         mustGet[string]("SMTP_HOST"),
-		SmtpPort:         mustGet[int]("SMTP_PORT"),
-		SmtpLogin:        mustGet[string]("SMTP_USER"),
-		SmtpPassword:     mustGet[string]("SMTP_PASS"),
+		Port:             mustGet[int](log, "PORT"),
+		AppURL:           mustGet[string](log, "APP_URL"),
+		BrokerURL:        mustGet[string](log, "BROKER_URL"),
+		BrokerMaxRetries: getWithDefault[int](log, "RMQ_MAX_RETRIES", 3),
+		SmtpHost:         mustGet[string](log, "SMTP_HOST"),
+		SmtpPort:         mustGet[int](log, "SMTP_PORT"),
+		SmtpLogin:        mustGet[string](log, "SMTP_USER"),
+		SmtpPassword:     mustGet[string](log, "SMTP_PASS"),
 		RootDir:          rootDir,
 	}
 }

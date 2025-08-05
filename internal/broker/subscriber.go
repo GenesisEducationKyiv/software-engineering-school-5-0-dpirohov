@@ -3,19 +3,24 @@ package broker
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
+	"weatherApi/internal/appctx"
+	"weatherApi/internal/common/constants"
+	"weatherApi/internal/logger"
+
+	"github.com/google/uuid"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type EventSubscriber interface {
-	Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error
+	Subscribe(ctx context.Context, topic Topic, handler func(ctx context.Context, data []byte) error) error
 	Close() error
 }
 
 type RabbitMQSubscriber struct {
+	log        *logger.Logger
 	url        string
 	conn       *amqp.Connection
 	subCh      *amqp.Channel
@@ -23,8 +28,9 @@ type RabbitMQSubscriber struct {
 	maxRetries int
 }
 
-func NewRabbitMQSubscriber(url string, maxRetries int, publisher EventPublisher) (*RabbitMQSubscriber, error) {
+func NewRabbitMQSubscriber(log *logger.Logger, url string, maxRetries int, publisher EventPublisher) (*RabbitMQSubscriber, error) {
 	s := &RabbitMQSubscriber{
+		log:        log,
 		url:        url,
 		publisher:  publisher,
 		maxRetries: maxRetries,
@@ -35,20 +41,20 @@ func NewRabbitMQSubscriber(url string, maxRetries int, publisher EventPublisher)
 	return s, nil
 }
 
-func (r *RabbitMQSubscriber) Subscribe(ctx context.Context, topic Topic, handler func([]byte) error) error {
+func (r *RabbitMQSubscriber) Subscribe(ctx context.Context, topic Topic, handler func(ctx context.Context, data []byte) error) error {
 	if err := r.connect(); err != nil {
-		log.Fatalf("RabbitMQSubscriber: failed to connectd to %s! err: %v", topic, err)
+		r.log.Base().Fatal().Err(err).Msgf("RabbitMQSubscriber: failed to connectd to %s!", topic)
 	}
 
 	if err := r.declareQueues(topic); err != nil {
-		closeChannel(r.subCh)
-		closeConnection(r.conn)
+		closeChannel(r.log, r.subCh)
+		closeConnection(r.log, r.conn)
 		return fmt.Errorf("error while declaring queues: %w", err)
 	}
 
 	go r.maintainConnection(ctx, topic, handler)
 
-	log.Printf("[Rabbit] subscribed to %s", topic)
+	r.log.Base().Info().Msgf("[Rabbit] subscribed to %s", topic)
 	return nil
 }
 
@@ -59,42 +65,42 @@ func (r *RabbitMQSubscriber) connect() error {
 	}
 	subCh, err := conn.Channel()
 	if err != nil {
-		closeConnection(conn)
+		closeConnection(r.log, conn)
 		return fmt.Errorf("subscriber connect: failed to open channel: %w", err)
 	}
 
 	if r.conn != nil {
-		closeConnection(r.conn)
+		closeConnection(r.log, r.conn)
 	}
 	if r.subCh != nil {
-		closeChannel(r.subCh)
+		closeChannel(r.log, r.subCh)
 	}
 	r.conn = conn
 	r.subCh = subCh
 	return nil
 }
 
-func (r *RabbitMQSubscriber) maintainConnection(ctx context.Context, topic Topic, handler func([]byte) error) {
+func (r *RabbitMQSubscriber) maintainConnection(ctx context.Context, topic Topic, handler func(ctx context.Context, data []byte) error) {
 	for {
 		err := r.consumeMessages(ctx, topic, handler)
 		if err != nil {
-			log.Printf("Subscribe error (will retry): %v", err)
+			r.log.Base().Error().Err(err).Msg("Subscribe error, retrying...")
 		}
 		select {
 		case <-ctx.Done():
-			log.Printf("Subscription to %s cancelled", topic)
+			r.log.Base().Info().Msgf("Subscription to %s cancelled", topic)
 			return
 		default:
 			time.Sleep(2 * time.Second)
 			if err := r.connect(); err != nil {
-				log.Printf("Reconnect failed: %v", err)
+				r.log.Base().Error().Err(err).Msg("Reconnect failed")
 				time.Sleep(3 * time.Second)
 			}
 		}
 	}
 }
 
-func (r *RabbitMQSubscriber) consumeMessages(ctx context.Context, topic Topic, handler func([]byte) error) error {
+func (r *RabbitMQSubscriber) consumeMessages(ctx context.Context, topic Topic, handler func(ctx context.Context, data []byte) error) error {
 	msgs, err := r.subCh.Consume(string(topic), "", false, false, false, false, nil)
 	if err != nil {
 		return fmt.Errorf("consume: %w", err)
@@ -108,27 +114,34 @@ func (r *RabbitMQSubscriber) consumeMessages(ctx context.Context, topic Topic, h
 			if !ok {
 				return fmt.Errorf("channel closed unexpectedly")
 			}
-			r.handleMessage(msg, topic, handler)
+			if traceID, ok := msg.Headers[constants.HdrTraceID].(string); ok {
+				ctx = appctx.SetTraceID(ctx, traceID)
+			} else {
+				ctx = appctx.SetTraceID(ctx, uuid.NewString())
+			}
+
+			r.handleMessage(ctx, msg, topic, handler)
 		}
 	}
 }
 
-func (r *RabbitMQSubscriber) handleMessage(msg amqp.Delivery, topic Topic, handler func([]byte) error) {
+func (r *RabbitMQSubscriber) handleMessage(ctx context.Context, msg amqp.Delivery, topic Topic, handler func(ctx context.Context, data []byte) error) {
 	retries := r.getRetriesCount(msg.Headers)
-	err := handler(msg.Body)
+	log := r.log.FromContext(ctx)
+	err := handler(ctx, msg.Body)
 	if err != nil {
 		retries++
 		if retries > r.maxRetries {
-			r.sendToDLQ(msg, topic, retries)
+			r.sendToDLQ(ctx, msg, topic, retries)
 			return
 		}
 		if errPub := r.publisher.Publish(
 			topic,
 			msg.Body,
-			WithHeaders(amqp.Table{"x-retries": retries}),
+			WithHeaders(amqp.Table{constants.HdrRetries: retries}),
 			WithContentType(msg.ContentType),
 		); errPub != nil {
-			log.Printf("Failed to republish message with retry count %d: %v", retries, errPub)
+			log.Error().Err(errPub).Msgf("Failed to republish message with retry count %d", retries)
 			_ = msg.Nack(false, true)
 			return
 		}
@@ -139,7 +152,7 @@ func (r *RabbitMQSubscriber) handleMessage(msg amqp.Delivery, topic Topic, handl
 }
 
 func (r *RabbitMQSubscriber) getRetriesCount(headers map[string]any) int {
-	if hdr, ok := headers[hdrRetries]; ok {
+	if hdr, ok := headers[constants.HdrRetries]; ok {
 		switch v := hdr.(type) {
 		case int32:
 			return int(v)
@@ -156,36 +169,38 @@ func (r *RabbitMQSubscriber) getRetriesCount(headers map[string]any) int {
 	return 0
 }
 
-func (r *RabbitMQSubscriber) sendToDLQ(msg amqp.Delivery, topic Topic, retries int) {
+func (r *RabbitMQSubscriber) sendToDLQ(ctx context.Context, msg amqp.Delivery, topic Topic, retries int) {
+	log := r.log.FromContext(ctx)
+
 	err := r.publisher.Publish(
 		topic.DLQ(),
 		msg.Body,
 		WithHeaders(amqp.Table{
-			hdrRetries:       retries,
-			hdrOriginalTopic: string(topic),
+			constants.HdrRetries:       retries,
+			constants.HdrOriginalTopic: string(topic),
 		}),
 		WithContentType(msg.ContentType),
 	)
 	if err != nil {
-		log.Printf("DLQ publish failed: %v", err)
+		log.Error().Err(err).Msg("DLQ publish failed")
 		_ = msg.Nack(false, false)
 		return
 	}
 	_ = msg.Ack(false)
-	log.Printf("Message sent to DLQ after %d retries", retries)
+	log.Info().Msgf("Message sent to DLQ after %d retries", retries)
 }
 
 func (r *RabbitMQSubscriber) Close() error {
 	var firstErr error
 	if r.subCh != nil {
 		if err := r.subCh.Close(); err != nil {
-			log.Printf("Failed to close RabbitMQ channel: %v", err)
+			r.log.Base().Error().Err(err).Msg("Failed to close RabbitMQ channel")
 			firstErr = err
 		}
 	}
 	if r.conn != nil {
 		if err := r.conn.Close(); err != nil {
-			log.Printf("Failed to close RabbitMQ connection: %v", err)
+			r.log.Base().Error().Err(err).Msg("Failed to close RabbitMQ connection")
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -199,7 +214,7 @@ func (r *RabbitMQSubscriber) declareQueues(topic Topic) error {
 		if _, err := r.subCh.QueueDeclare(string(t), true, false, false, false, nil); err != nil {
 			return err
 		}
-		log.Printf("Queue %s created!", t)
+		r.log.Base().Info().Msg("Queue %s created!")
 	}
 	return nil
 }

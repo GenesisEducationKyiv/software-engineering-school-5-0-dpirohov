@@ -3,25 +3,26 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/provider"
 )
 
 func StartConfirmationWorker(
+	log *logger.Logger,
 	ctx context.Context,
 	subscriber broker.EventSubscriber,
 	smtpClient provider.SMTPClientInterface,
 ) error {
-	err := subscriber.Subscribe(ctx, broker.SubscriptionConfirmationTasks, func(data []byte) error {
+	err := subscriber.Subscribe(ctx, broker.SubscriptionConfirmationTasks, func(ctx context.Context, data []byte) error {
+		log := log.FromContext(ctx)
 		var task dto.ConfirmationEmailTask
 		if err := json.Unmarshal(data, &task); err != nil {
-			log.Println("Failed to decode task:", err)
+			log.Error().Err(err).Msg("Failed to decode task")
 			return err
 		}
-
-		log.Printf("Sending confirmation to %s for city %s", task.Email, task.City)
+		log.Info().Msgf("Sending subscription confirmation letter to %s for city %s", task.Email, task.City)
 		return smtpClient.SendConfirmationToken(task.Email, task.Token, task.City)
 	})
 	return err

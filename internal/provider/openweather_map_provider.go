@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 
 	"weatherApi/internal/common/errors"
 	serviceErrors "weatherApi/internal/service/weather/errors"
@@ -16,13 +16,15 @@ import (
 var _ WeatherProviderInterface = (*WeatherApiProvider)(nil)
 
 type OpenWeatherMapApiProvider struct {
+	log    *logger.Logger
 	next   WeatherProviderInterface
 	apiKey string
 	url    string
 }
 
-func NewOpenWeatherApiProvider(apikey, url string) *OpenWeatherMapApiProvider {
+func NewOpenWeatherApiProvider(log *logger.Logger, apikey, url string) *OpenWeatherMapApiProvider {
 	return &OpenWeatherMapApiProvider{
+		log:    log,
 		apiKey: apikey,
 		url:    url,
 	}
@@ -36,46 +38,48 @@ func (w *OpenWeatherMapApiProvider) SetNext(next WeatherProviderInterface) {
 	w.next = next
 }
 
-func (w *OpenWeatherMapApiProvider) Next(city string) (*dto.WeatherResponse, *errors.AppError) {
+func (w *OpenWeatherMapApiProvider) Next(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
+	log := w.log.FromContext(ctx)
 	if w.next != nil {
-		return w.next.GetWeather(city)
+		return w.next.GetWeather(ctx, city)
 	}
-	log.Printf("OpenWeatherMapApiProvider: no providers left in chain!")
+	log.Error().Msg("OpenWeatherMapApiProvider: no providers left in chain!")
 	return nil, serviceErrors.ErrInternalServerError
 }
 
-func (w *OpenWeatherMapApiProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+func (w *OpenWeatherMapApiProvider) GetWeather(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
 	var openWeatherMapResponse dto.OpenweatherMapAPIResponse
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	log := w.log.FromContext(ctx)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("%s?q=%s&APPID=%s&units=metric", w.url, city, w.apiKey),
 		nil,
 	)
 	if err != nil {
-		return TryNext(w, w.next, city, fmt.Errorf("request creation failed: %w", err))
+		return TryNext(log, ctx, w, w.next, city, fmt.Errorf("request creation failed: %w", err))
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return TryNext(w, w.next, city, fmt.Errorf("HTTP request failed: %w", err))
+		return TryNext(log, ctx, w, w.next, city, fmt.Errorf("HTTP request failed: %w", err))
 	}
 
 	defer func() {
 		if err := response.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
+			log.Error().Err(err).Msg("Failed to close response body")
 		}
 	}()
 
 	if badResponse := w.checkApiResponse(response); badResponse != nil {
 		if badResponse.Code == 500 {
-			return TryNext(w, w.next, city, fmt.Errorf("bad API response: %w", err))
+			return TryNext(log, ctx, w, w.next, city, fmt.Errorf("bad API response: %w", err))
 		}
 		return nil, badResponse
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&openWeatherMapResponse); err != nil {
-		return TryNext(w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
+		return TryNext(log, ctx, w, w.next, city, fmt.Errorf("failed to decode response: %w", err))
 	}
 
 	var description string

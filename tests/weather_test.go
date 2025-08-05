@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"weatherApi/internal/logger"
 
 	"github.com/stretchr/testify/require"
 
@@ -33,8 +34,9 @@ func TestWeatherHandler_Success(t *testing.T) {
 		}
 	}))
 	defer mockAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	mainProvider := provider.NewWeatherApiProvider("test", mockAPI.URL)
+	mainProvider := provider.NewWeatherApiProvider(log, "test", mockAPI.URL)
 
 	mockFallbackProvider := &provider.MockProvider{
 		Response: &dto.WeatherResponse{
@@ -46,9 +48,9 @@ func TestWeatherHandler_Success(t *testing.T) {
 	}
 	mockCacheRepo := cacheRepo.NewMockCacheRepo()
 
-	svc := weather.NewWeatherService(mockCacheRepo, mainProvider, mockFallbackProvider)
+	svc := weather.NewWeatherService(log, mockCacheRepo, mainProvider, mockFallbackProvider)
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
@@ -72,10 +74,11 @@ func TestWeatherHandler_Success(t *testing.T) {
 func TestWeatherHandler_MissingCity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	mockCacheRepo := cacheRepo.NewMockCacheRepo()
+	log := logger.NewNoOpLogger()
 
-	svc := weather.NewWeatherService(mockCacheRepo, &provider.MockProvider{}, &provider.MockProvider{})
+	svc := weather.NewWeatherService(log, mockCacheRepo, &provider.MockProvider{}, &provider.MockProvider{})
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
@@ -112,14 +115,15 @@ func TestWeatherHandler_FallbackUsed(t *testing.T) {
 		}
 	}))
 	defer mockOpenWeatherMapAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
-	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
+	mainProvider := provider.NewWeatherApiProvider(log, "test", mockWeatherAPI.URL)
+	fallbackProvider := provider.NewOpenWeatherApiProvider(log, "test", mockOpenWeatherMapAPI.URL)
 	mockCacheRepo := cacheRepo.NewMockCacheRepo()
 
-	svc := weather.NewWeatherService(mockCacheRepo, mainProvider, fallbackProvider)
+	svc := weather.NewWeatherService(log, mockCacheRepo, mainProvider, fallbackProvider)
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
@@ -163,14 +167,15 @@ func TestCityNotFound(t *testing.T) {
 		}
 	}))
 	defer mockOpenWeatherMapAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	mainProvider := provider.NewWeatherApiProvider("test", mockWeatherAPI.URL)
-	fallbackProvider := provider.NewOpenWeatherApiProvider("test", mockOpenWeatherMapAPI.URL)
+	mainProvider := provider.NewWeatherApiProvider(log, "test", mockWeatherAPI.URL)
+	fallbackProvider := provider.NewOpenWeatherApiProvider(log, "test", mockOpenWeatherMapAPI.URL)
 	mockCacheRepo := cacheRepo.NewMockCacheRepo()
 
-	svc := weather.NewWeatherService(mockCacheRepo, mainProvider, fallbackProvider)
+	svc := weather.NewWeatherService(log, mockCacheRepo, mainProvider, fallbackProvider)
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
@@ -195,12 +200,13 @@ func TestWeatherHandler_RealProviderWithMockedAPI(t *testing.T) {
 		}
 	}))
 	defer mockAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	prov := provider.NewOpenWeatherApiProvider("test", mockAPI.URL)
+	prov := provider.NewOpenWeatherApiProvider(log, "test", mockAPI.URL)
 	mockCacheRepo := cacheRepo.NewMockCacheRepo()
 
-	svc := weather.NewWeatherService(mockCacheRepo, prov)
-	handler := routes.NewWeatherHandler(svc)
+	svc := weather.NewWeatherService(log, mockCacheRepo, prov)
+	handler := routes.NewWeatherHandler(log, svc)
 
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
@@ -230,12 +236,13 @@ func TestWeatherService_Cache_HTTP(t *testing.T) {
 		}
 	}))
 	defer mockAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	mainProvider := provider.NewWeatherApiProvider("test", mockAPI.URL)
+	mainProvider := provider.NewWeatherApiProvider(log, "test", mockAPI.URL)
 	mockRepo := cacheRepo.NewMockCacheRepo()
-	svc := weather.NewWeatherService(mockRepo, mainProvider)
+	svc := weather.NewWeatherService(log, mockRepo, mainProvider)
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
@@ -281,12 +288,13 @@ func TestWeatherService_WaitForLockedCache(t *testing.T) {
 		}
 	}))
 	defer mockAPI.Close()
+	log := logger.NewNoOpLogger()
 
-	mainProvider := provider.NewWeatherApiProvider("test", mockAPI.URL)
+	mainProvider := provider.NewWeatherApiProvider(log, "test", mockAPI.URL)
 	mockRepo := cacheRepo.NewMockCacheRepo()
-	svc := weather.NewWeatherService(mockRepo, mainProvider)
+	svc := weather.NewWeatherService(log, mockRepo, mainProvider)
 
-	handler := routes.NewWeatherHandler(svc)
+	handler := routes.NewWeatherHandler(log, svc)
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 
@@ -347,9 +355,11 @@ func TestWeatherService_ProviderCallCount(t *testing.T) {
 		Err: nil,
 	}
 	mockRepo := cacheRepo.NewMockCacheRepo()
-	svc := weather.NewWeatherService(mockRepo, mockProv)
+	log := logger.NewNoOpLogger()
 
-	handler := routes.NewWeatherHandler(svc)
+	svc := weather.NewWeatherService(log, mockRepo, mockProv)
+
+	handler := routes.NewWeatherHandler(log, svc)
 	router := gin.Default()
 	router.GET("/weather", handler.GetWeather)
 

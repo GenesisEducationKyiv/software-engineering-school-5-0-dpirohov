@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"weatherApi/internal/dto"
 	serviceErrors "weatherApi/internal/service/weather/errors"
 
@@ -14,11 +15,11 @@ type MockProvider struct {
 	GetWeatherCallCount int
 }
 
-func (m *MockProvider) GetWeather(city string) (*dto.WeatherResponse, *errors.AppError) {
+func (m *MockProvider) GetWeather(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
 	m.GetWeatherCallCount++
 	if m.Err != nil {
 		if m.Err.Code == 500 && m.next != nil {
-			return m.Next(city)
+			return m.Next(ctx, city)
 		}
 		return nil, m.Err
 	}
@@ -33,9 +34,9 @@ func (m *MockProvider) SetNext(next WeatherProviderInterface) {
 	m.next = next
 }
 
-func (m *MockProvider) Next(city string) (*dto.WeatherResponse, *errors.AppError) {
+func (m *MockProvider) Next(ctx context.Context, city string) (*dto.WeatherResponse, *errors.AppError) {
 	if m.next != nil {
-		return m.next.GetWeather(city)
+		return m.next.GetWeather(ctx, city)
 	}
 	return nil, serviceErrors.ErrInternalServerError
 }
