@@ -41,6 +41,13 @@ A simple weather API application that allows you to:
 > - Unit tests: cover business logic
 
 ---
+
+## CI Status
+
+[![E2E Tests](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/run_e2e_tests.yaml/badge.svg)](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/run_e2e_tests.yaml)
+[![Unit Tests](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/run_tests.yaml/badge.svg)](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/run_tests.yaml)
+[![Linter](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/linter.yaml/badge.svg)](https://github.com/GenesisEducationKyiv/software-engineering-school-5-0-dpirohov/actions/workflows/linter.yaml)
+--- 
 ## Service Architecture
 
 ![Architecture](docs/architecture/microservice-architecture.svg)
