@@ -1,0 +1,256 @@
+services:
+  db:
+    image: postgres:16
+    container_name: my_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: mydb
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d mydb"]
+      interval: 10s
+      retries: 5
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      local-net:
+  migrate:
+    image: migrate/migrate:v4.15.2
+    depends_on:
+      db:
+        condition:  service_healthy
+    command: ["-path", "/migrations", "-database", "postgres://admin:secret@db:5432/mydb?sslmode=disable", "up"]
+    volumes:
+      - ./migrations:/migrations
+    networks:
+      local-net:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    depends_on:
+      db:
+        condition:  service_healthy
+      migrate:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmqctl status"]
+      interval: 10s
+      retries: 5
+    networks:
+      local-net:
+  redis:
+    image: redis:7
+    container_name: redis-cache
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    command: ["redis-server", "--requirepass", "secret"]
+    networks:
+      local-net:
+  api:
+    build:
+      context: .
+      dockerfile: cmd/api_service/Dockerfile
+    container_name: api-service
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DB_HOST: db
+      DB_USER: admin
+      DB_PASSWORD: secret
+      DB_NAME: mydb
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8080/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
+    env_file: [ ".env.api_service" ]
+    restart: always
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: "127.0.0.1:24224"
+        fluentd-async: "true"
+        tag: api-service.logs
+    networks:
+      local-net:
+  notification-service:
+    build:
+      context: .
+      dockerfile: cmd/notification_service/Dockerfile
+    container_name: notification-service
+    depends_on:
+      api:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    env_file: [ ".env.notification_service" ]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8081/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: always
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "127.0.0.1:24224"
+        fluentd-async: "true"
+        tag: notification-service.logs
+    networks:
+      local-net:
+  
+  prometheus:
+    profiles:
+      - monitoring
+    image: prom/prometheus
+    volumes:
+      - prometheus-data:/prometheus
+      - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '127.0.0.1:9090:9090'
+    networks:
+      local-net:
+  grafana:
+    profiles:
+      - monitoring
+    image: grafana/grafana
+    ports:
+      - '127.0.0.1:3000:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      local-net:
+  opensearch-node1:
+    profiles:
+      - tracing
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node1
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1 # Name the node that will run in this container
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2 # Nodes to look for when discovering the cluster
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2 # Nodes eligible to serve as cluster manager
+      - bootstrap.memory_lock=true # Disable JVM heap memory swapping
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # Set min and max JVM heap sizes to at least 50% of system RAM
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - bootstrap.system_call_filter=false
+    ulimits:
+      memlock:
+        soft: -1 # Set memlock to unlimited (no soft or hard limit)
+        hard: -1
+      nofile:
+        soft: 65536 # Maximum number of open files for the opensearch user - set to at least 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data # Creates volume called opensearch-data1 and mounts it to the container
+    ports:
+      - "9200:9200" # REST API
+      - "9600:9600" # Performance Analyzer
+    networks:
+      local-net:
+  opensearch-node2:
+    profiles:
+      - tracing
+    image: opensearchproject/opensearch:latest # This should be the same image used for opensearch-node1 to avoid issues
+    container_name: opensearch-node2
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node2
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - bootstrap.system_call_filter=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data2:/usr/share/opensearch/data
+    networks:
+      local-net:
+  opensearch-dashboards:
+    profiles:
+      - tracing
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601"
+    expose:
+      - "5601"
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch-node1:9200","http://opensearch-node2:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+
+    networks:
+      local-net:
+
+  fluent-bit:
+    profiles:
+      - tracing
+    image: fluent/fluent-bit:latest
+    container_name: fluent-bit
+    volumes:
+      - ./infrastructure/monitoring/fluent/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./infrastructure/monitoring/fluent/parsers.conf:/fluent-bit/etc/parsers.conf
+      - /var/lib/docker/containers:/var/log/containers
+    depends_on:
+      - opensearch-node1
+      - opensearch-node2
+    networks:
+      - local-net
+    ports:
+      - "127.0.0.1:24224:24224"
+      - "127.0.0.1:24224:24224/udp"
+
+volumes:
+  pg_data:
+  redis-data:
+  grafana-storage:
+  prometheus-data:
+  opensearch-data1:
+  opensearch-data2:
+
+networks:
+  local-net:

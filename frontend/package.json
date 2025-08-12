@@ -1,0 +1,41 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "preview": "vite preview",
+    "build": "tsc && vite build",
+    "codegen": "openapi --input /Users/dpirohov/PycharmProjects/weatherApiFe/frontend/api.yaml --output ./src/api --client axios"
+  },
+  "dependencies": {
+    "@emotion/react": "^11",
+    "@emotion/styled": "^11",
+    "@mui/icons-material": "^7",
+    "@mui/material": "^7",
+    "@mui/material-nextjs": "^7",
+    "@tanstack/react-query": "^5.76.1",
+    "@toolpad/core": "0.15.0",
+    "axios": "^1.9.0",
+    "react": "^19",
+    "react-dom": "^19",
+    "react-hook-form-mui": "^7.6.2",
+    "react-router": "^7",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.1",
+    "uuid": "^11.1.0",
+    "@types/node": "^24.0.3",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^4.3.2",
+    "eslint": "^8",
+    "openapi-typescript-codegen": "^0.29.0",
+    "pretty-quick": "^4.1.1",
+    "@types/pg": "^8.15.4",
+    "dotenv": "^16.5.0",
+    "pg": "^8.16.2",
+    "typescript": "^5",
+    "vite": "^5.4.8"
+  }
+}
