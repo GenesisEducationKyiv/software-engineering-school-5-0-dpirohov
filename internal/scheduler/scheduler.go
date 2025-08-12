@@ -4,15 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
+	"weatherApi/internal/appctx"
 	"weatherApi/internal/broker"
 	"weatherApi/internal/common/constants"
 	"weatherApi/internal/dto"
+	"weatherApi/internal/logger"
 	"weatherApi/internal/repository/subscription"
 	serviceWeather "weatherApi/internal/service/weather"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+
+	"github.com/google/uuid"
 
 	"github.com/go-co-op/gocron/v2"
 )
@@ -24,6 +29,7 @@ type SubscriptionRepositoryInterface interface {
 }
 
 type Service struct {
+	log              *logger.Logger
 	subscriptionRepo SubscriptionRepositoryInterface
 	publisher        broker.EventPublisher
 	scheduler        gocron.Scheduler
@@ -32,6 +38,7 @@ type Service struct {
 }
 
 func NewService(
+	log *logger.Logger,
 	subscriptionRepo SubscriptionRepositoryInterface,
 	publisher broker.EventPublisher,
 	weatherService *serviceWeather.Service,
@@ -43,6 +50,7 @@ func NewService(
 	}
 
 	return &Service{
+		log:              log,
 		subscriptionRepo: subscriptionRepo,
 		publisher:        publisher,
 		scheduler:        sched,
@@ -51,13 +59,15 @@ func NewService(
 	}, nil
 }
 
-func (s *Service) Start(ctx context.Context) error {
+func (s *Service) Start() error {
 	_, err := s.scheduler.NewJob(
 		gocron.DurationJob(time.Hour),
 		gocron.NewTask(func() {
-			log.Println("Hourly job started")
+			ctx := appctx.SetTraceID(context.Background(), uuid.NewString())
+			log := s.log.FromContext(ctx)
+			log.Info().Msg("Hourly job started")
 			if err := s.SendNotification(ctx, constants.FrequencyHourly); err != nil {
-				log.Printf("error in hourly notification: %v", err)
+				log.Error().Err(err).Msg("Error processing hourly notification")
 			}
 		}),
 	)
@@ -68,9 +78,11 @@ func (s *Service) Start(ctx context.Context) error {
 	_, err = s.scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(9, 0, 0))),
 		gocron.NewTask(func() {
-			log.Println("Daily job started")
+			ctx := appctx.SetTraceID(context.Background(), uuid.NewString())
+			log := s.log.FromContext(ctx)
+			log.Info().Msg("Daily job started")
 			if err := s.SendNotification(ctx, constants.FrequencyDaily); err != nil {
-				log.Printf("error in daily notification: %v", err)
+				log.Error().Err(err).Msg("Error processing daily notification")
 			}
 		}),
 	)
@@ -82,24 +94,23 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) Stop(ctx context.Context) error {
-	log.Println("Shutting down scheduler...")
+func (s *Service) Stop() error {
+	s.log.Base().Info().Msg("Shutting down scheduler...")
 	return s.scheduler.Shutdown()
 }
 
 func (s *Service) SendNotification(ctx context.Context, frequency constants.Frequency) error {
 	now := time.Now()
-
+	log := s.log.FromContext(ctx)
 	if frequency == constants.FrequencyHourly && now.Hour() == 9 {
-		log.Println("Hourly job skipped, cause of dayly job!")
+		log.Info().Msg("Hourly job skipped, cause of dayly job!")
 		return nil
 	}
-
-	log.Printf("Sending notifications for %s frequency...\n", frequency)
+	log.Info().Msgf("Sending notifications for %s frequency...", frequency)
 
 	subs, err := s.subscriptionRepo.FindAllSubscriptionsByFrequency(ctx, frequency)
 	if err != nil {
-		return fmt.Errorf("failed to get subscriptions: %w", err)
+		log.Error().Err(err).Msg("Failed to get subscriptions")
 	}
 
 	cityToEmails := make(map[string][]subscription.SubscriptionModel)
@@ -122,7 +133,7 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 
 			weather, err := s.weatherService.GetWeather(ctx, city)
 			if err != nil {
-				s.HandleError(fmt.Sprintf("failed to fetch weather for city=%s: %v", city, err))
+				s.HandleError(fmt.Sprintf("failed to fetch weather for city=%s", city), err)
 				return
 			}
 
@@ -138,12 +149,12 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 
 			payload, marshalErr := json.Marshal(task)
 			if marshalErr != nil {
-				s.HandleError(fmt.Sprintf("error marshaling event for %s: %v", city, marshalErr))
+				s.HandleError(fmt.Sprintf("error marshaling event for %s", city), marshalErr)
 				return
 			}
-
-			if err := s.publisher.Publish(broker.SendSubscriptionWeatherData, payload); err != nil {
-				s.HandleError(fmt.Sprintf("failed to publish notification for %s: %v", city, err))
+			traceID := appctx.GetTraceID(ctx)
+			if err := s.publisher.Publish(broker.SendSubscriptionWeatherData, payload, broker.WithHeaders(amqp.Table{constants.HdrTraceID: traceID})); err != nil {
+				s.HandleError(fmt.Sprintf("failed to publish notification for %s", city), err)
 			}
 		}(ctx, city, subs)
 	}
@@ -152,9 +163,9 @@ func (s *Service) SendNotification(ctx context.Context, frequency constants.Freq
 	return nil
 }
 
-func (s *Service) HandleError(msg string) {
-	log.Println(msg)
+func (s *Service) HandleError(msg string, err error) {
+	s.log.Base().Error().Err(err).Msg(msg)
 	if err := s.publisher.Publish(broker.SendSubscriptionWeatherData.DLQ(), []byte(msg)); err != nil {
-		log.Printf("error sending event to DLQ %v", err)
+		s.log.Base().Error().Err(err).Msg("error sending event to DLQ")
 	}
 }

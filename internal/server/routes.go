@@ -4,6 +4,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"weatherApi/internal/metrics"
+	"weatherApi/internal/middleware"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -14,7 +18,12 @@ import (
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
-	r := gin.Default()
+	r := gin.New()
+	httpMetrics := metrics.NewHTTPMetrics()
+	httpMetrics.Register(prometheus.DefaultRegisterer)
+	r.Use(gin.Recovery())
+	r.Use(middleware.TraceMiddleware())
+	r.Use(middleware.PrometheusMiddleware(httpMetrics))
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173"},
@@ -27,11 +36,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	api := r.Group("/api/v1")
 	{
-		weatherHandler := routes.NewWeatherHandler(s.WeatherService)
+		weatherHandler := routes.NewWeatherHandler(s.log, s.WeatherService)
 		api.GET("/health", s.healthHandler)
 		api.GET("/weather", weatherHandler.GetWeather)
 
-		subscriptionHandler := routes.NewSubscriptionHandler(s.SubscriptionService)
+		subscriptionHandler := routes.NewSubscriptionHandler(s.log, s.SubscriptionService)
 		api.POST("/subscribe", subscriptionHandler.Subscribe)
 		api.GET("/confirm/:token", subscriptionHandler.ConfirmSubscription)
 		api.GET("/unsubscribe/:token", subscriptionHandler.Unsubscribe)
